@@ -1,14 +1,14 @@
-function [ image ] = s422ToImage( imagecell )
+function [ ycbcrimage ] = s422ToImage( simage )
 %S422TOIMAGE Summary of this function goes here
 %   Detailed explanation goes here
 %   http://dougkerr.net/pumpkin/articles/Subsampling.pdf
 
-if length(imagecell) == 3
-    osize = size(imagecell{1});
-    image = zeros(osize(1), osize(2), 3);
-    image(:,:,1) = imagecell{1};
-    image(:,:,2) = imresize(imagecell{2}, [osize(1) osize(2)], 'bilinear');
-    image(:,:,3) = imresize(imagecell{3}, [osize(1) osize(2)], 'bilinear');
+if isfield(simage, {'y','cb','cr'});
+    osize = size(simage.y);
+    ycbcrimage = zeros(osize(1), osize(2), 3);
+    ycbcrimage(:,:,1) = simage.y;
+    ycbcrimage(:,:,2) = imresize(simage.cb, [osize(1) osize(2)], 'bilinear');
+    ycbcrimage(:,:,3) = imresize(simage.cr, [osize(1) osize(2)], 'bilinear');
 else 
     throw(MException('Subsample:NoColourChannels', 'The input image must be a cell with 3 elements corresponding to the 3 channels.'));
 end
