@@ -11,7 +11,7 @@ entropy(I)
 qf = 50; % 1 to 31
 
 
-qt = TransformCoding.qualityFactorIJG(TransformCoding.ACLuminanceQuantisationTable, qf);
+qt = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.ACLuminanceQuantisationTable, qf);
 
 
 fun = @dct2;

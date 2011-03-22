@@ -1,4 +1,4 @@
-function qt = convertQualityFactorToQuantisationParameter(quantisation_table, qf)
+function qt = qualityFactorToQuantisationTable(quantisation_table, qf)
 % convertQualityFactorToQuantisationParameter: qf = quality factor as in IJG's implementation
 
 if( qf < 1 )

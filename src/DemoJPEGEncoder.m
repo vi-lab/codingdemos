@@ -50,6 +50,18 @@ classdef DemoJPEGEncoder < handle
             % TODO: START CODING??? maybe optionally
         end
         
+        function set.qualityFactor(obj, data)
+            obj.qualityFactor = data;
+            
+            % TODO: UPDATE ENCODING
+        end
+       
+        function set.chromaSamplingMode(obj, data)
+            obj.chromaSamplingMode = data;
+            
+            % TODO: UPDATE ENCODING
+        end
+        
         function setCodingParameters(obj, varargin)
             for k=1:size(varargin,2) 
                 switch lower(varargin{k})
@@ -74,7 +86,9 @@ classdef DemoJPEGEncoder < handle
         function encode(obj)
             % check if input data is set
             
-            obj.quantisationParameter = TransformCoding.convertQualityFactorToQuantisationParameter(obj.qualityFactor);
+            obj.quantisationParameter = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.ACLuminanceQuantisationTable, obj.qualityFactor);
+            
+            
         end
     end
 end 
