@@ -10,21 +10,21 @@ try
     %s420 = Subsampling.imageTo420(I);
     s420 = Subsampling.ycbcrImageToSubsampled(I, '4:2:0' );
     
-    r422 = Subsampling.s422ToImage(s422);
+    %r422 = Subsampling.s422ToImage(s422);
+    r422 = Subsampling.subsampledToYCbCrImage(s422);
 
-    r420 = Subsampling.s420ToImage(s420);
-
+    %r420 = Subsampling.s420ToImage(s420);
+    r420 = Subsampling.subsampledToYCbCrImage(s420);
+    
     h = figure(1);
     set(h, 'Name', '4:4:4');
     imshow(ycbcr2rgb(uint8(I)));
     h = figure(2);
     set(h, 'Name', '4:2:2');
-    %imshow(ycbcr2rgb(uint8(r422)));
-    Subsampling.s422Show(s422);
+    Subsampling.subsampledImageShow(s422);
     h = figure(3);
     set(h, 'Name', '4:2:0');
-    %imshow(ycbcr2rgb(uint8(r420)));
-    Subsampling.s420Show(s420);
+    Subsampling.subsampledImageShow(s420);
     success = true;
 catch ME
     

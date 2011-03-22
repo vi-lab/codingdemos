@@ -11,7 +11,7 @@ if isfield(simage, {'y','cb','cr'})
     ycbcrimage(:,:,2) = imresize(simage.cb, [osize(1) osize(2)], 'bilinear');
     ycbcrimage(:,:,3) = imresize(simage.cr, [osize(1) osize(2)], 'bilinear');
 else 
-    throw(MException('Subsample:NoColourChannels', 'The input image must be a cell with 3 elements corresponding to the 3 channels.'));
+    throw(MException('Subsample:NoColourChannels', 'The input image must be a struct with y, cb and cr fields corresponding to the 3 channels.'));
 end
 
 end
