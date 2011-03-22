@@ -25,6 +25,8 @@ classdef teachingtool < handle
             % GUI
            
             obj.imageEncoder = DemoJPEGEncoder();
+            
+            obj.imageEncoder.inputImageData = 'lena_color_256.bmp';
            
             obj.hMainWindow = figure('Position',[10 10 980 680], 'Color', 'w', 'Renderer','opengl');
 
