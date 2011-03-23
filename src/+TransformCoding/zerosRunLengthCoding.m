@@ -1,6 +1,14 @@
-function rlcdata = zerosRunLengthCoding(zigzag)
+function rlcdata = zerosRunLengthCoding(zigzag, maxlength)
 
 % COMMENT ME UP
+
+if ~exist('maxlength', 'var')
+    maxlength = 15;
+end
+
+% We use -1 padding. A count of -1 means this pair is nothing and end of
+% data. We need the padding so output of blkproc is equal for each block
+% and thus can be joined into one output matrix
 rlcdata = -ones(1, 64);
 
 %DCvalue = zigzag(1);
@@ -29,6 +37,30 @@ if prev ~= length(ACvalues)
 end
 %RLCvalues = ACvalues(ind);
 
-%rlcdata
+
+euirfghasdfhalsdhflakdglaisdghflashdkasdjhasd
+ % now must handle special JPEG standard case limiting zeros to 15 for run
+zclen = length(zcs);
+j = 1; % new length counter
+for i=1:zclen
+    if(  zcs(i) > 15 )
+        % work out how many (15,0)s are needed and insert into zerocounts
+        % and values
+        fifteenzs = floor(zcs(i) / 15);
+        remz = rem(zcs(i), 15);
+        for k=1:fifteenzs
+            zerocounts(j) = 15;
+            values(j) = 0;
+            j = j + 1;
+        end
+        % and rem zeros plus val
+        zerocounts(j) =remz;
+        values(j) = vals(i);
+    else
+        zerocounts(j) = zcs(i);
+        values(j) = vals(i);
+    end
+    j = j+1;
+end
 
 return

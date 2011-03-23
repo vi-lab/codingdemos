@@ -41,6 +41,10 @@ zigzag = blkproc(K,[8 8],@TransformCoding.coefficientOrdering);
 
 rlcd = blkproc(zigzag,[1 64],@TransformCoding.zerosRunLengthCoding);
 
+
+
+
+
 % dequant
 fun = @(x) ( x .* ([17,12,11,17,25,41,52,62;13,13,15,20,27,59,61,56;15,14,17,25,41,58,70,57;15,18,23,30,52,88,81,63;19,23,38,57,69,110,104,78;25,36,56,65,82,105,114,93;50,65,79,88,104,122,121,102;73,93,96,99,113,101,104,100;]) ); %quant(x, 100));
 IK = blkproc(K,[8 8],fun);

@@ -26,7 +26,8 @@ classdef teachingtool < handle
            
             obj.imageEncoder = DemoJPEGEncoder();
             
-            obj.imageEncoder.inputImageData = 'lena_color_256.bmp';
+            obj.imageEncoder.input = 'lena_color_256.bmp';
+            disp(obj.imageEncoder.encode())
            
             obj.hMainWindow = figure('Position',[10 10 980 680], 'Color', 'w', 'Renderer','opengl');
 
@@ -48,7 +49,7 @@ uicontrol(tab2, 'String','Close', 'Callback','close(gcbf)');
 jTabGroup = getappdata(handle(hTabGroup),'JTabbedPane');     
 %}            
             % add observers
-            obj.listenerImageEncoderCoefficients = addlistener(obj.imageEncoder, 'coefficients', 'PostSet', @(src,event)handlePropertyEventsFromImageEncoder(obj,src,event));
+            obj.listenerImageEncoderCoefficients = addlistener(obj.imageEncoder, 'yCoefficients', 'PostSet', @(src,event)handlePropertyEventsFromImageEncoder(obj,src,event));
         end
 
         function buttonCallback(hObject, eventdata, obj)
