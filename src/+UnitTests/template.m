@@ -10,7 +10,9 @@ try
 catch ME
     disp('*** Unit Test Failure: ***');
     disp(mfilename('fullpath'));
+    disp(ME.identifier);
     disp(ME.message);
+    disp(ME.stack);
     success = false;
 end
 

@@ -1,6 +1,7 @@
 function huffcode = ACHuffmanLuminanceCodeTable( run, cat )
 
 % DOCS AND REF 
+% http://en.wikibooks.org/wiki/JPEG_-_Idea_and_Practice/The_Huffman_coding
 
 AC_lum_huff = {
 '1010',...

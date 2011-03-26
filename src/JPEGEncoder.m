@@ -1,4 +1,4 @@
-classdef DemoJPEGEncoder < handle
+classdef JPEGEncoder < handle
 %DEMOJPEGENCODER Summary of this class goes here
 %Detailed explanation goes here
 % DemoJPEGEncoder Properties:
@@ -106,6 +106,10 @@ classdef DemoJPEGEncoder < handle
                 end
             end
         end
+        
+        function success = encodeToFile(obj, fileName)
+            success = Utilities.writeBinaryFileFromArray( fileName, Utilities.binaryToNumericArray(obj.encode()) );
+        end
 
         function stream = encode(obj)
             % Encode Baseline DCT JPEG
@@ -138,18 +142,29 @@ classdef DemoJPEGEncoder < handle
             else
                 % no struct so create from matrix
             end
-            
-            
-            % level shift
-            TODO
-            %%%% im = int8(im - 128);
-
-            
+                        
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
             
             % TODO: Expand to be divisible by 8????????? or does blkproc
             % handle this?
+            
+
+            % Level Shift
+            % -----------
+            % By adjusting the range of the input data from 0-255 to
+            % -128-127 the DCT DC value range is changed to be in a similar
+            % integer range to that of the AC values making implementations
+            % simpler on particular integer types. The AC values should be
+            % level shift independant
+            % Ref:
+            % http://compgroups.net/comp.compression/Level-Shift-in-JPEG-optional-or-mandatory
+            
+            %%%%% After a non-differential frame decoding process computes
+            %%%%% the IDCT and produces a block of reconstructed image samples, an inverse level shift shall restore the samples to the unsigned representation by adding 2P ? 1 and clamping the results to the range 0 to 2P ? 1.
+            obj.imageStruct.y   = int8(double(obj.imageStruct.y) - 128);
+            obj.imageStruct.cb  = int8(double(obj.imageStruct.cb) - 128);
+            obj.imageStruct.cr  = int8(double(obj.imageStruct.cr) - 128);
             
             % perform DCT and quant
             obj.yCoefficients = blkproc(obj.imageStruct.y, [8 8], @dct2);
@@ -237,29 +252,16 @@ classdef DemoJPEGEncoder < handle
             % Since a number of segments are not used in the implementation
             % they are not discussed further. Please refer to the standards
             % documentation for more. Markers: DNL, DRI, RST, COM, APP ETC
-
-            emptyByte       = dec2bin(0,8);
             
             % Markers
             % -------
             % Ref: CCITT Rec. T.81 (1992 E)	p. 32
             
             % SOI : Marks start of a JPEG image
-            markerStartOfImage          = dec2bin(hex2dec('FFD8'),16);
+            markerStartOfImage          = Utilities.hexToShort('FFD8');%dec2bin(hex2dec('FFD8'),16);
 
             % EOI : Marks the end of the JPEG file
-            markerEndOfImage            = dec2bin(hex2dec('FFD9'),16);
-            
-            
-            
-            markerDefineQuantisationTable = dec2bin(hex2dec('FFDB'),16);
-            markerDefineHuffmanTable    = dec2bin(hex2dec('FFC4'),16);
-            markerStartOfScan           = dec2bin(hex2dec('FFDA'),16);
-            
-            
-            
-            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00
-            % after
+            markerEndOfImage            = Utilities.hexToShort('FFD9');%dec2bin(hex2dec('FFD9'),16);
             
             % Frame Header Format
             % -------------------
@@ -268,7 +270,7 @@ classdef DemoJPEGEncoder < handle
             % http://en.wikibooks.org/wiki/JPEG_-_Idea_and_Practice/The_header_part
             
             % SOF0 : Marks that this is a Baseline DCT mode JPEG
-            markerStartOfFrame_Mode0    = dec2bin(hex2dec('FFC0'),16);
+            markerStartOfFrame_Mode0    = Utilities.hexToShort('FFC0');%dec2bin(hex2dec('FFC0'),16);
             
             % Here is a header from a real JPEG using 4:2:2
             % FF C0, 00 11, 08, 01 90, 02 80, 03, 01, 21, 00, 02, 11, 01, 03, 11, 01
@@ -284,45 +286,52 @@ classdef DemoJPEGEncoder < handle
             [Hi Vi] = Subsampling.modeToHorizontalAndVerticalSamplingFactor(obj.imageStruct.mode);
             
             % Lf    (2 bytes)
-            segmentSOFLength = dec2bin(8 + 3 * (3), 16); % includes the 2 bytes needed for the length itself
+            segmentSOFLength            = Utilities.decimalToShort(8 + 3 * (3));%dec2bin(8 + 3 * (3), 16); % includes the 2 bytes needed for the length itself
             % P     (1 byte)
-            dataByteSize    = dec2bin(8,8); % 8 bit bytes , would be 12 in extended mode but im not supporting it
+            dataByteSize                = Utilities.decimalToByte(8);%dec2bin(8,8); % 8 bit bytes , would be 12 in extended mode but im not supporting it
             % Y     (2 byte)
-            imageHeight     = dec2bin(size(obj.imageStruct.y,1),16);
+            imageHeight                 = Utilities.decimalToShort(size(obj.imageStruct.y,1));%dec2bin(size(obj.imageStruct.y,1),16);
             % X     (2 byte)
-            imageWidth      = dec2bin(size(obj.imageStruct.y,2),16);
+            imageWidth                  = Utilities.decimalToShort(size(obj.imageStruct.y,2));%dec2bin(size(obj.imageStruct.y,2),16);
             % Nf    (1 byte)
-            numberOfChannels= dec2bin(3, 8);
+            numberOfChannels            = Utilities.decimalToByte(3);%dec2bin(3, 8);
             
             % Ci1   (1 byte)
-            yComponentIdentifier    = dec2bin(1,8);
+            yComponentIdentifier        = Utilities.decimalToByte(1);%dec2bin(1,8);
             % Hi1   (1 nibble)
-            yHorizontalSamplingFactor   = dec2bin(Hi,4);
+            %yHorizontalSamplingFactor   = dec2bin(Hi,4);
             % Vi1   (1 nibble)
-            yVerticalSamplingFactor     = dec2bin(Vi,4);
+            %yVerticalSamplingFactor     = dec2bin(Vi,4);
+            yHorizontalVerticalSamplingFactor       = Utilities.decimalNibblesToByte(Hi, Vi);
             % Tqi1  (1 byte)
-            yQuantisationTableDestinationSelector = dec2bin(0,8); %Table0 for Y 
+            yQuantisationTableDestinationSelector   = Utilities.decimalToByte(0);%dec2bin(0,8); %Table0 for Y 
             
             % Ci2   (1 byte)
-            cbComponentIdentifier   = dec2bin(2,8);
+            cbComponentIdentifier       = Utilities.decimalToByte(2);%dec2bin(2,8);
             % Hi2   (1 nibble)
-            cbHorizontalSamplingFactor  = dec2bin(1,4);
+            %cbHorizontalSamplingFactor  = dec2bin(1,4);
             % Vi2   (1 nibble)
-            cbVerticalSamplingFactor    = dec2bin(1,4);
+            %cbVerticalSamplingFactor    = dec2bin(1,4);
+            cbHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(1, 1);
             % Tqi2  (1 byte)
-            cbQuantisationTableDestinationSelector = dec2bin(1,8); %Table1 for chroma
+            cbQuantisationTableDestinationSelector  = Utilities.decimalToByte(1);%dec2bin(1,8); %Table1 for chroma
             
             % Ci3   (1 byte)
-            crComponentIdentifier   = dec2bin(3,8);
+            crComponentIdentifier       = Utilities.decimalToByte(3);%dec2bin(3,8);
             % Hi3   (1 nibble)
-            crHorizontalSamplingFactor  = dec2bin(1,4);
+            %crHorizontalSamplingFactor  = dec2bin(1,4);
             % Vi3   (1 nibble)
-            crVerticalSamplingFactor 	= dec2bin(1,4);
+            %crVerticalSamplingFactor 	= dec2bin(1,4);
+            crHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(1, 1);
             % Tqi3  (1 byte)
-            crQuantisationTableDestinationSelector = dec2bin(1,8);
+            crQuantisationTableDestinationSelector  = Utilities.decimalToByte(1);%dec2bin(1,8);
             
             
             % Tables
+            % ------
+                        
+            markerDefineQuantisationTable   = Utilities.hexToShort('FFDB');%dec2bin(hex2dec('FFDB'),16);
+            markerDefineHuffmanTable        = Utilities.hexToShort('FFC4');%dec2bin(hex2dec('FFC4'),16);
             
             
             
@@ -335,7 +344,7 @@ classdef DemoJPEGEncoder < handle
             % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
             
             % SOS marker
-            markerStartOfScan       = dec2bin(hex2dec('FFDA'),16);
+            markerStartOfScan       = Utilities.hexToShort('FFDA');%dec2bin(hex2dec('FFDA'), 16);
             
             % Ls    (2 bytes)
             % Ns    (1 byte)
@@ -343,6 +352,13 @@ classdef DemoJPEGEncoder < handle
             
             
             % Entropy Coded Segment 0
+            
+            % *********************************
+            % TODO:
+            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00
+            % !!!!!!!
+            % PAD with 1s to end if nec (I think) -- div by 8 and remainder
+            % is how many bits need adding
             
             
             stream = strcat(markerStartOfImage, ... % SOI
@@ -352,19 +368,24 @@ classdef DemoJPEGEncoder < handle
                 imageHeight, ...
                 imageWidth, ...
                 numberOfChannels, ...
-                yComponentIdentifier, ...
-                yHorizontalSamplingFactor, ...
-                yVerticalSamplingFactor, ...
+                yComponentIdentifier, ... %yHorizontalSamplingFactor, yVerticalSamplingFactor, ...
+                yHorizontalVerticalSamplingFactor, ...
                 yQuantisationTableDestinationSelector, ...
-                cbComponentIdentifier, ...
-                cbHorizontalSamplingFactor, ...
-                cbVerticalSamplingFactor, ...
+                cbComponentIdentifier, ... %cbHorizontalSamplingFactor, cbVerticalSamplingFactor, ...
+                cbHorizontalVerticalSamplingFactor, ...
                 cbQuantisationTableDestinationSelector, ...
-                crComponentIdentifier, ...
-                crHorizontalSamplingFactor, ...
-                crVerticalSamplingFactor, ...
+                crComponentIdentifier, ... %crHorizontalSamplingFactor, crVerticalSamplingFactor, ...
+                crHorizontalVerticalSamplingFactor, ...
                 crQuantisationTableDestinationSelector, ... % end frame header
                 markerEndOfImage);  % EOI
+            
+            
+            % TODO:
+            % optimisation wise will be quicker to build in numeric form
+            % but will look at this later
+            
+            % CONVERT to numeric array for writing to file
+            
             
             obj.output = stream;
         end

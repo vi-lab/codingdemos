@@ -38,29 +38,19 @@ end
 %RLCvalues = ACvalues(ind);
 
 
-euirfghasdfhalsdhflakdglaisdghflashdkasdjhasd
- % now must handle special JPEG standard case limiting zeros to 15 for run
-zclen = length(zcs);
-j = 1; % new length counter
-for i=1:zclen
-    if(  zcs(i) > 15 )
-        % work out how many (15,0)s are needed and insert into zerocounts
-        % and values
-        fifteenzs = floor(zcs(i) / 15);
-        remz = rem(zcs(i), 15);
+% Now must handle special JPEG standard case limiting zeros to 15 for run
+for i=1:2:length(rlcdata)
+    if  rlcdata(i) > 15 
+        % Work out how many (15,0)s are needed and insert
+        fifteenzs = floor(rlcdata(i) / 15);
+        remz = rem(rlcdata(i), 15);
+        % Update with remainder zeros number
+        rlcdata(i) = remz;
+        % Insert (15,0)s
         for k=1:fifteenzs
-            zerocounts(j) = 15;
-            values(j) = 0;
-            j = j + 1;
+            rlcdata = [rlcdata(1:i-1) 15 0 rlcdata(i:end - 2)]; % insert and remove last 2 values which will be -1s
         end
-        % and rem zeros plus val
-        zerocounts(j) =remz;
-        values(j) = vals(i);
-    else
-        zerocounts(j) = zcs(i);
-        values(j) = vals(i);
     end
-    j = j+1;
 end
 
 return

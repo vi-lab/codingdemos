@@ -24,11 +24,6 @@ classdef teachingtool < handle
             % create instances of the encoder objects, then initialise the
             % GUI
            
-            obj.imageEncoder = DemoJPEGEncoder();
-            
-            obj.imageEncoder.input = 'lena_color_256.bmp';
-            disp(obj.imageEncoder.encode())
-           
             obj.hMainWindow = figure('Position',[10 10 980 680], 'Color', 'w', 'Renderer','opengl');
 
             % THE FOLLOWING IS JUST TESTING CODE
