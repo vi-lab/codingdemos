@@ -6,7 +6,7 @@ clear classes
 %try 
     % test code
     obj.imageEncoder = JPEGEncoder();
-            
+    %obj.imageEncoder.input = 'lena_color_odd.bmp';
     obj.imageEncoder.input = 'lena_color_256.bmp';
     obj.imageEncoder.encode();
     

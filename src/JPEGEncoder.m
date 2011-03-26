@@ -28,23 +28,26 @@ classdef JPEGEncoder < handle
         yCoefficients
         yQuantisedCoefficients
         yOrderedCoefficients
-        yZerosRunLengthCodedOrderedCoefficients
+        yZerosRunLengthCodedOrderedACCoefficients
+        yDCCoefficients
         
         cbCoefficients
         cbQuantisedCoefficients
         cbOrderedCoefficients
-        cbZerosRunLengthCodedOrderedCoefficients
+        cbZerosRunLengthCodedOrderedACCoefficients
+        cbDCCoefficients
         
         crCoefficients
         crQuantisedCoefficients
         crOrderedCoefficients
-        crZerosRunLengthCodedOrderedCoefficients
+        crZerosRunLengthCodedOrderedACCoefficients
+        crDCCoefficients
         
         output
     end
 
     methods
-        function obj = DemoJPEGEncoder(source)
+        function obj = JPEGEncoder(source)
             if exist('source','var')
                 obj.input(source);
             end
@@ -69,7 +72,7 @@ classdef JPEGEncoder < handle
                 obj.imageMatrix = data;
                 obj.imageStruct = struct('y', obj.imageMatrix(:,:,1),'cb', obj.imageMatrix(:,:,2),'cr', obj.imageMatrix(:,:,3), 'mode', '4:4:4');
             else
-                throw(MException('DemoJPEGEncoder:input', 'The input image data must be either a struct with y, cb and cr fields corresponding to the 3 channels, a string file name to read, or a ycbcr image matrix.')); 
+                throw(MException('JPEGEncoder:input', 'The input image data must be either a struct with y, cb and cr fields corresponding to the 3 channels, a string file name to read, or a ycbcr image matrix.')); 
             end
             % TODO: START CODING??? maybe optionally
         end
@@ -94,62 +97,121 @@ classdef JPEGEncoder < handle
                         if isa(varargin{k}, 'numeric')
                             obj.qualityFactor = varargin{k};
                         else
-                            throw(MException('DemoJPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.')); 
+                            throw(MException('JPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.')); 
                         end
                     case 'subsampling'
                         k = k + 1;
                         if isa(varargin{k}, 'char')
                             obj.chromaSamplingMode = varargin{k};
                         else
-                            throw(MException('DemoJPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.')); 
+                            throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.')); 
                         end
                 end
             end
         end
         
         function success = encodeToFile(obj, fileName)
+            % ------------------------------------------
+            % Encode Baseline DCT JPEG and write to file
+            % ------------------------------------------
+            % Refs: 
+            %
+            % Parameters:
+            %
+            % Returns:
+            %
+            
             success = Utilities.writeBinaryFileFromArray( fileName, Utilities.binaryToNumericArray(obj.encode()) );
         end
 
         function stream = encode(obj)
+            % ------------------------
             % Encode Baseline DCT JPEG
             % ------------------------
             % Refs: 
             % Baseline process: CCITT Rec. T.81 (1992 E) p.87
+            %
+            % Parameters:
+            %
+            % Returns:
+            %
             
-            
-            
-            % check if input data is set
-            
-            % for each colour channel 
-            %if ~isfield(obj.imageStruct, 'y')
-            %    throw(MException('DemoJPEGEncoder:encode', 'No ''y'' channel was found on the source image.')); 
-            %end
-            
-            % if subsampling is necessary
+            % If subsampling is necessary make sure it has been performed
             if isa(obj.imageStruct, 'struct') 
-                % TODO: HERE WE NEED to make sure its YCBCR
-                
+                % For each colour channel 
+                if ~isfield(obj.imageStruct, 'y')
+                    throw(MException('JPEGEncoder:encode', 'No ''y'' channel was found on the source image.')); 
+                end
+                if ~isfield(obj.imageStruct, 'cb')
+                    throw(MException('JPEGEncoder:encode', 'No ''cb'' channel was found on the source image.')); 
+                end
+                if ~isfield(obj.imageStruct, 'cr')
+                    throw(MException('JPEGEncoder:encode', 'No ''cr'' channel was found on the source image.')); 
+                end
+
                 if isfield(obj.imageStruct, 'mode')
                     if strcmp(obj.imageStruct.mode, obj.chromaSamplingMode)
                         % already ok
                     else
                         % convert
+                        obj.imageStruct = Subsampling.ycbcrImageToSubsampled(Subsampling.subsampledToYCbCrImage(obj.imageStruct), obj.chromaSamplingMode );
                     end
                 else
-                    % struct but no mode, so convert
+                    % struct but no mode
+                    throw(MException('JPEGEncoder:encode', 'No ''mode'' was found on the source image.')); 
                 end
             else
                 % no struct so create from matrix
+                obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix, obj.chromaSamplingMode );
             end
                         
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
+      
+            % Perform the level shift
+            obj.levelShiftInputImage();
             
-            % TODO: Expand to be divisible by 8????????? or does blkproc
-            % handle this?
+            % Perform DCT and quant, blkproc handles image extension for
+            % edge blocks smaller than 8x8
+            obj.yCoefficients = blkproc(obj.imageStruct.y, [8 8], @dct2);
+            obj.yQuantisedCoefficients = blkproc(obj.yCoefficients, [8 8], @(block)obj.quantiseLuminanceCoefficients(block));
             
-
+            obj.cbCoefficients = blkproc(obj.imageStruct.cb, [8 8], @dct2);
+            obj.cbQuantisedCoefficients = blkproc(obj.cbCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
+            
+            obj.crCoefficients = blkproc(obj.imageStruct.cr, [8 8], @dct2);
+            obj.crQuantisedCoefficients = blkproc(obj.crCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
+            
+            % Zigzag
+            obj.yOrderedCoefficients = blkproc(obj.yQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
+            obj.cbOrderedCoefficients = blkproc(obj.cbQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
+            obj.crOrderedCoefficients = blkproc(obj.crQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
+            
+            % RLE
+            obj.yZerosRunLengthCodedOrderedACCoefficients = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
+            obj.cbZerosRunLengthCodedOrderedACCoefficients = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
+            obj.crZerosRunLengthCodedOrderedACCoefficients = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
+            
+            % DC coefficient lists
+            obj.yDCCoefficients = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+            obj.cbDCCoefficients = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+            obj.crDCCoefficients = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+              
+            % Differentially code DC
+            
+            
+            
+            % Code AC
+            
+            
+            
+            % Create the output bitstream
+            stream = obj.createBitStream();
+        end
+        
+        % Helper Methods
+        function levelShiftInputImage(obj)
+            % -----------
             % Level Shift
             % -----------
             % By adjusting the range of the input data from 0-255 to
@@ -165,33 +227,8 @@ classdef JPEGEncoder < handle
             obj.imageStruct.y   = int8(double(obj.imageStruct.y) - 128);
             obj.imageStruct.cb  = int8(double(obj.imageStruct.cb) - 128);
             obj.imageStruct.cr  = int8(double(obj.imageStruct.cr) - 128);
-            
-            % perform DCT and quant
-            obj.yCoefficients = blkproc(obj.imageStruct.y, [8 8], @dct2);
-            obj.yQuantisedCoefficients = blkproc(obj.yCoefficients, [8 8], @(block)obj.quantiseLuminanceCoefficients(block));
-            
-            obj.cbCoefficients = blkproc(obj.imageStruct.cb, [8 8], @dct2);
-            obj.cbQuantisedCoefficients = blkproc(obj.cbCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
-            
-            obj.crCoefficients = blkproc(obj.imageStruct.cr, [8 8], @dct2);
-            obj.crQuantisedCoefficients = blkproc(obj.crCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
-            
-            % zigzag
-            obj.yOrderedCoefficients = blkproc(obj.yQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            obj.cbOrderedCoefficients = blkproc(obj.cbQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            obj.crOrderedCoefficients = blkproc(obj.crQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            
-            % RLE
-            obj.yZerosRunLengthCodedOrderedCoefficients = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            obj.cbZerosRunLengthCodedOrderedCoefficients = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            obj.crZerosRunLengthCodedOrderedCoefficients = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            
-            % Huffman
-            
-            stream = obj.createBitStream();
         end
         
-        % Helper Methods
         function coeffs = quantiseLuminanceCoefficients(obj, block)
             coeffs = TransformCoding.luminanceQuantisation(block, obj.luminanceScaledQuantisationTable);
         end
@@ -201,6 +238,7 @@ classdef JPEGEncoder < handle
         end
         
         function stream = createBitStream(obj)
+            % ----------------
             % Create bitstream
             % ----------------
             % Ref: CCITT Rec. T.81 (1992 E)
@@ -217,7 +255,7 @@ classdef JPEGEncoder < handle
             % 3) End of image marker (EOI)
             %
             % A [FRAME] is as follows:
-            % 1) <[TABLES]>   &&&&&&&&&&&&&&&&&&&&&& HERE ? &&&&&&&&&&&&&&&&&&&&
+            % 1) [TABLES]
             % 2) [FRAMEHEADER]
             % 3) [SCAN]
             %
@@ -234,7 +272,7 @@ classdef JPEGEncoder < handle
             % byte).
             %
             % A [SCAN] is composed of:
-            % 1) <[TABLES]>  &&&&&&&&&&&&&&&&&&&&&& HERE ? &&&&&&&&&&&&&&&&&&&&
+            % 1) <[TABLES]> optional
             % 2) [SCANHEADER]
             % 3) [Entropy coded segment ECS]
             %
@@ -253,16 +291,63 @@ classdef JPEGEncoder < handle
             % they are not discussed further. Please refer to the standards
             % documentation for more. Markers: DNL, DRI, RST, COM, APP ETC
             
-            % Markers
-            % -------
             % Ref: CCITT Rec. T.81 (1992 E)	p. 32
-            
             % SOI : Marks start of a JPEG image
             markerStartOfImage          = Utilities.hexToShort('FFD8');%dec2bin(hex2dec('FFD8'),16);
-
             % EOI : Marks the end of the JPEG file
             markerEndOfImage            = Utilities.hexToShort('FFD9');%dec2bin(hex2dec('FFD9'),16);
             
+            frameHeader = obj.createBitStreamForFrameHeader();
+            quantisationTables = obj.createBitStreamForQuantisationTables();
+            huffmanTables = obj.createBitStreamForHuffmanTables();
+            
+            scanHeader = obj.createBitStreamForScanHeader();
+            
+            entropyCodedSegment = obj.createBitStreamForEntropyCodedData();
+            
+            stream = cat(2, markerStartOfImage, ... % SOI
+                quantisationTables, ... % Tables for this image
+                huffmanTables, ...
+                frameHeader, ...
+                scanHeader,...
+                entropyCodedSegment, ...
+                markerEndOfImage);  % EOI
+
+            obj.output = stream;
+        end
+        
+        function bits = createBitStreamForEntropyCodedData(obj)
+            % -----------
+            % Entropy Coded Segment
+            % -----------
+            % TODO:
+            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00
+            % !!!!!!!
+            % PAD with 1s to end if nec (I think) -- div by 8 and remainder
+            % is how many bits need adding
+            
+        end
+        
+        function bits = createBitStreamForScanHeader(obj)
+            % -----------
+            % Scan Header
+            % -----------
+            % Ref: CCITT Rec. T.81 (1992 E)	p.37
+            
+            % From real JPEG image using 4:2:0"
+            % FF DA 00 0C 03 01 00 02 11 03 11 00 3F 00
+            % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
+            
+            % SOS marker
+            markerStartOfScan       = Utilities.hexToShort('FFDA');%dec2bin(hex2dec('FFDA'), 16);
+            
+            % Ls    (2 bytes)
+            % Ns    (1 byte)
+            % 
+        end
+        
+        function bits = createBitStreamForFrameHeader(obj)
+            % -------------------
             % Frame Header Format
             % -------------------
             % Ref: CCITT Rec. T.81 (1992 E)	p. 35
@@ -325,44 +410,8 @@ classdef JPEGEncoder < handle
             crHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(1, 1);
             % Tqi3  (1 byte)
             crQuantisationTableDestinationSelector  = Utilities.decimalToByte(1);%dec2bin(1,8);
-            
-            
-            % Tables
-            % ------
-                        
-            markerDefineQuantisationTable   = Utilities.hexToShort('FFDB');%dec2bin(hex2dec('FFDB'),16);
-            markerDefineHuffmanTable        = Utilities.hexToShort('FFC4');%dec2bin(hex2dec('FFC4'),16);
-            
-            
-            
-            % Scan Header
-            % -----------
-            % Ref: CCITT Rec. T.81 (1992 E)	p.37
-            
-            % From real JPEG image using 4:2:0"
-            % FF DA 00 0C 03 01 00 02 11 03 11 00 3F 00
-            % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
-            
-            % SOS marker
-            markerStartOfScan       = Utilities.hexToShort('FFDA');%dec2bin(hex2dec('FFDA'), 16);
-            
-            % Ls    (2 bytes)
-            % Ns    (1 byte)
-            % 
-            
-            
-            % Entropy Coded Segment 0
-            
-            % *********************************
-            % TODO:
-            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00
-            % !!!!!!!
-            % PAD with 1s to end if nec (I think) -- div by 8 and remainder
-            % is how many bits need adding
-            
-            
-            stream = strcat(markerStartOfImage, ... % SOI
-                markerStartOfFrame_Mode0, ...% SOF: start frame header
+
+            bits = cat(2,markerStartOfFrame_Mode0, ...% SOF: start frame header
                 segmentSOFLength, ...
                 dataByteSize, ...
                 imageHeight, ...
@@ -376,18 +425,26 @@ classdef JPEGEncoder < handle
                 cbQuantisationTableDestinationSelector, ...
                 crComponentIdentifier, ... %crHorizontalSamplingFactor, crVerticalSamplingFactor, ...
                 crHorizontalVerticalSamplingFactor, ...
-                crQuantisationTableDestinationSelector, ... % end frame header
-                markerEndOfImage);  % EOI
-            
-            
-            % TODO:
-            % optimisation wise will be quicker to build in numeric form
-            % but will look at this later
-            
-            % CONVERT to numeric array for writing to file
-            
-            
-            obj.output = stream;
+                crQuantisationTableDestinationSelector);
         end
+        
+        function bits = createBitStreamForQuantisationTables(obj)
+            
+            markerDefineQuantisationTable   = Utilities.hexToShort('FFDB');%dec2bin(hex2dec('FFDB'),16);
+            
+            bits = cat(2, ...
+                markerDefineQuantisationTable ...
+                );
+        end
+
+        function bits = createBitStreamForHuffmanTables(obj)
+            
+            markerDefineHuffmanTable        = Utilities.hexToShort('FFC4');%dec2bin(hex2dec('FFC4'),16);
+            
+            bits = cat(2, ...
+                markerDefineHuffmanTable ...
+                );
+        end
+
     end
 end 
