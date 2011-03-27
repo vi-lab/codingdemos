@@ -199,10 +199,18 @@ classdef JPEGEncoder < handle
               
             % Differentially code DC
             
+            % diffs 
+            % range/length
             
             
             % Code AC
             
+            % range/length
+ 
+            
+            
+            % Generate Huffman tables
+            % p 50. Annex C
             
             
             % Create the output bitstream
@@ -278,14 +286,34 @@ classdef JPEGEncoder < handle
             %
             % A [SCANHEADER] is composed of:
             % 1) A Start of Scan marker (SOS)
-            % 2) 
+            % 2) 11 bytes (for 3 channels) comprising of: Header length
+            % (Ls, 2 bytes), number of channels in scan (Ns, 1 byte), a 2
+            % byte sequence for each colour channel: the ID (Csi 1 byte),
+            % then 2 packed nibbles of the DC entropy coding table ID & the
+            % AC entropy coding table ID (Tdi:Tai, 1 byte). These are
+            % followed by the Start of predictor ID (Ss, 1 byte), the End
+            % of predictor ID (Se, 1 byte) and then 1 packed byte
+            % comprising of Successive approximation bit position high and
+            % the Successive approximation bit position low (Ah:Al, 1
+            % byte). Note for Sequential Baseline DCT JPEG, Ss = 0, Se =
+            % 63, Ah = 0 and Al = 0
             %
             % An [ECS] (entropy coded segment) is as follows:
-            % 1)
+            % 1) 
             %
             % The [TABLES] for quantisation and Huffman coding are as
             % follows:
-            % 1)
+            % * Quantisation Tables:
+            %   1) Define Quantisation Table marker (DQT)
+            %   2) Segment length (Lq, 2 bytes) followed, for each table to
+            %      be specified, by: 1 packed byte where the high four bits
+            %      are the Precision of entries, (0 for 8 bit, 1 for 
+            %      16bit) and the low 4 bits are the ID of the table
+            %      (Pq:Tq, 1 byte), followed by the 64 quantisation table
+            %      entries in zig-zag order (64 bytes (or 128 if 16bit Pq))
+            %
+            % * Huffman Tables:
+            %   1)
             %
             % Since a number of segments are not used in the implementation
             % they are not discussed further. Please refer to the standards
@@ -326,6 +354,7 @@ classdef JPEGEncoder < handle
             % PAD with 1s to end if nec (I think) -- div by 8 and remainder
             % is how many bits need adding
             
+            bits = [];
         end
         
         function bits = createBitStreamForScanHeader(obj)
@@ -334,7 +363,7 @@ classdef JPEGEncoder < handle
             % -----------
             % Ref: CCITT Rec. T.81 (1992 E)	p.37
             
-            % From real JPEG image using 4:2:0"
+            % From real JPEG image using 4:2:0
             % FF DA 00 0C 03 01 00 02 11 03 11 00 3F 00
             % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
             
@@ -342,8 +371,42 @@ classdef JPEGEncoder < handle
             markerStartOfScan       = Utilities.hexToShort('FFDA');%dec2bin(hex2dec('FFDA'), 16);
             
             % Ls    (2 bytes)
+            segmentLength       = Utilities.decimalToShort(6 + (2*3));
             % Ns    (1 byte)
-            % 
+            componentCount      = Utilities.decimalToByte(3);
+            % Cs1   (1 byte)
+            yChannelID          = Utilities.decimalToByte(1);
+            % Td1:Ta1 (1 byte)
+            yChannelTableIDs    = Utilities.decimalNibblesToByte(0, 0);
+            % Cs2   (1 byte)
+            cbChannelID         = Utilities.decimalToByte(2);
+            % Td2:Ta2 (1 byte)
+            cbChannelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
+            % Cs3   (1 byte)
+            crChannelID         = Utilities.decimalToByte(3);
+            % Td3:Ta3 (1 byte)
+            crChannelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
+            % Ss    (1 byte)
+            startPredictorID    = Utilities.decimalToByte(0);
+            % Se    (1 byte)
+            endPredictorID      = Utilities.decimalToByte(63);
+            % Ah:Al (1 byte)
+            successiveApproximationBitPosition = Utilities.decimalNibblesToByte(0, 0);
+            
+            bits = cat(2, ...
+                markerStartOfScan, ...
+                segmentLength, ...
+                componentCount, ...
+                yChannelID, ...
+                yChannelTableIDs, ...
+                cbChannelID, ...
+                cbChannelTableIDs, ...
+                crChannelID, ...
+                crChannelTableIDs, ...
+                startPredictorID, ...
+                endPredictorID, ...
+                successiveApproximationBitPosition ...
+                );
         end
         
         function bits = createBitStreamForFrameHeader(obj)
@@ -364,11 +427,10 @@ classdef JPEGEncoder < handle
             % followed by the huffman tables
             
             % From a real JPEG using 4:4:4 then Hi = 1 Vi = 1 for all
-            
             % From a real JPEG using 4:2:0 then Hi = 2 Vi = 2 for Y and 1,1
-            % for chroma
-            
-            [Hi Vi] = Subsampling.modeToHorizontalAndVerticalSamplingFactor(obj.imageStruct.mode);
+            % for chroma. For a more detailed explaination see the comments
+            % in the following method:
+            [yHi yVi cbHi cbVi crHi crVi] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct.mode);
             
             % Lf    (2 bytes)
             segmentSOFLength            = Utilities.decimalToShort(8 + 3 * (3));%dec2bin(8 + 3 * (3), 16); % includes the 2 bytes needed for the length itself
@@ -384,30 +446,24 @@ classdef JPEGEncoder < handle
             % Ci1   (1 byte)
             yComponentIdentifier        = Utilities.decimalToByte(1);%dec2bin(1,8);
             % Hi1   (1 nibble)
-            %yHorizontalSamplingFactor   = dec2bin(Hi,4);
             % Vi1   (1 nibble)
-            %yVerticalSamplingFactor     = dec2bin(Vi,4);
-            yHorizontalVerticalSamplingFactor       = Utilities.decimalNibblesToByte(Hi, Vi);
+            yHorizontalVerticalSamplingFactor       = Utilities.decimalNibblesToByte(yHi, yVi);
             % Tqi1  (1 byte)
             yQuantisationTableDestinationSelector   = Utilities.decimalToByte(0);%dec2bin(0,8); %Table0 for Y 
             
             % Ci2   (1 byte)
             cbComponentIdentifier       = Utilities.decimalToByte(2);%dec2bin(2,8);
             % Hi2   (1 nibble)
-            %cbHorizontalSamplingFactor  = dec2bin(1,4);
             % Vi2   (1 nibble)
-            %cbVerticalSamplingFactor    = dec2bin(1,4);
-            cbHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(1, 1);
+            cbHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(cbHi, cbVi);
             % Tqi2  (1 byte)
             cbQuantisationTableDestinationSelector  = Utilities.decimalToByte(1);%dec2bin(1,8); %Table1 for chroma
             
             % Ci3   (1 byte)
             crComponentIdentifier       = Utilities.decimalToByte(3);%dec2bin(3,8);
             % Hi3   (1 nibble)
-            %crHorizontalSamplingFactor  = dec2bin(1,4);
             % Vi3   (1 nibble)
-            %crVerticalSamplingFactor 	= dec2bin(1,4);
-            crHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(1, 1);
+            crHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(crHi, crVi);
             % Tqi3  (1 byte)
             crQuantisationTableDestinationSelector  = Utilities.decimalToByte(1);%dec2bin(1,8);
 
@@ -429,11 +485,47 @@ classdef JPEGEncoder < handle
         end
         
         function bits = createBitStreamForQuantisationTables(obj)
+            % --------------------------
+            % Quantisation Table entries
+            % --------------------------
+            % Ref: CCITT Rec. T.81 (1992 E)	p.39
+            % 
+            % TODO MOVE DOCS HERE FROM THE createBitStream method! 
+            %
+            % Note: This method encodes 2 quantisation tables, one for
+            % luminance channels and one for chroma.
             
-            markerDefineQuantisationTable   = Utilities.hexToShort('FFDB');%dec2bin(hex2dec('FFDB'),16);
+            % DQT
+            markerDefineQuantisationTable   = Utilities.hexToShort('FFDB');
+            
+            % Lq
+            segmentLength                   = Utilities.decimalToShort(2 + (2*65)); % 2 tables of 65 bytes each
+            
+            % Y Table
+            % Pq:Tq
+            luminanceTablePrecisionAndID    = Utilities.decimalNibblesToByte(0, 0); % 8 bit, table 0
+            % Entries - arrayfun expects a scalar return so instead set
+            % UniformOutput = false and then use cell2mat on the resulting
+            % cell array to flatten it
+            luminanceTableEntries           = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                TransformCoding.coefficientOrdering( ...
+                                                    obj.luminanceScaledQuantisationTable), 'UniformOutput', false));
+            
+            % Chroma Table
+            % Pq:Tq
+            chromaTablePrecisionAndID       = Utilities.decimalNibblesToByte(0, 1); % 8 bit, table 1
+            % Entries
+            chromaTableEntries              = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                TransformCoding.coefficientOrdering( ...
+                                                    obj.chromaScaledQuantisationTable), 'UniformOutput', false));
             
             bits = cat(2, ...
-                markerDefineQuantisationTable ...
+                markerDefineQuantisationTable, ...
+                segmentLength, ...
+                luminanceTablePrecisionAndID, ...
+                luminanceTableEntries, ...
+                chromaTablePrecisionAndID, ...
+                chromaTableEntries ...
                 );
         end
 
