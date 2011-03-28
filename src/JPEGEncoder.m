@@ -43,6 +43,17 @@ classdef JPEGEncoder < handle
         crZerosRunLengthCodedOrderedACCoefficients
         crDCCoefficients
         
+        %{
+        luminanceDCHuffmanCodeCountPerCodeLength    % BITS
+        luminanceDCHuffmanSymbolValuesPerCode   % HUFFVAL
+        chromaDCHuffmanCodeCountPerCodeLength    % BITS
+        chromaDCHuffmanSymbolValuesPerCode   % HUFFVAL
+
+        luminanceACHuffmanCodeCountPerCodeLength    % BITS
+        luminanceACHuffmanSymbolValuesPerCode   % HUFFVAL
+        chromaACHuffmanCodeCountPerCodeLength    % BITS
+        chromaACHuffmanSymbolValuesPerCode   % HUFFVAL
+        %}
         output
     end
 
@@ -51,30 +62,28 @@ classdef JPEGEncoder < handle
             if exist('source','var')
                 obj.input(source);
             end
-            
-            % set parameter defaults
-            obj.qualityFactor = 60;
-            obj.chromaSamplingMode = '4:2:0';
+            obj.setParameterDefaultValues;
         end
 
         function set.input(obj, data)
-            %if source is a string read file, if its a matrix is image, if struct is struct image
-            if isa(data, 'char')
-                obj.input = struct('fileName', data);
-                obj.imageMatrix = rgb2ycbcr(imread(data));
-                obj.imageStruct = struct('y', obj.imageMatrix(:,:,1),'cb', obj.imageMatrix(:,:,2),'cr', obj.imageMatrix(:,:,3), 'mode', '4:4:4');
-            elseif isa(data, 'struct')
-                obj.input = data;
-                obj.imageMatrix = Subsampling.subsampledToYCbCrImage(data);
-                obj.imageStruct = data;
-            elseif isa(data, 'numeric')
-                obj.input = struct('matrix', data);
-                obj.imageMatrix = data;
-                obj.imageStruct = struct('y', obj.imageMatrix(:,:,1),'cb', obj.imageMatrix(:,:,2),'cr', obj.imageMatrix(:,:,3), 'mode', '4:4:4');
-            else
-                throw(MException('JPEGEncoder:input', 'The input image data must be either a struct with y, cb and cr fields corresponding to the 3 channels, a string file name to read, or a ycbcr image matrix.')); 
+            if exist('data', 'var') && ~isempty(data)
+                %if source is a string read file, if its a matrix is image, if struct is struct image
+                if isa(data, 'char')
+                    obj.input = struct('fileName', data);
+                    obj.imageMatrix = rgb2ycbcr(imread(data));
+                    obj.imageStruct = struct('y', obj.imageMatrix(:,:,1),'cb', obj.imageMatrix(:,:,2),'cr', obj.imageMatrix(:,:,3), 'mode', '4:4:4');
+                elseif isa(data, 'struct')
+                    obj.input = data;
+                    obj.imageMatrix = Subsampling.subsampledToYCbCrImage(data);
+                    obj.imageStruct = data;
+                elseif isa(data, 'numeric')
+                    obj.input = struct('matrix', data);
+                    obj.imageMatrix = data;
+                    obj.imageStruct = struct('y', obj.imageMatrix(:,:,1),'cb', obj.imageMatrix(:,:,2),'cr', obj.imageMatrix(:,:,3), 'mode', '4:4:4');
+                else
+                    throw(MException('JPEGEncoder:input', 'The input image data must be either a struct with y, cb and cr fields corresponding to the 3 channels, a string file name to read, or a ycbcr image matrix.')); 
+                end
             end
-            % TODO: START CODING??? maybe optionally
         end
         
         function set.qualityFactor(obj, data)
@@ -87,6 +96,10 @@ classdef JPEGEncoder < handle
             obj.chromaSamplingMode = data;
             
             % TODO: UPDATE ENCODING
+        end
+        
+        function setParameterDefaultValues(obj)
+            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0');
         end
 
         function setCodingParameters(obj, varargin)
@@ -108,6 +121,18 @@ classdef JPEGEncoder < handle
                         end
                 end
             end
+        end
+        
+        function reset(obj)
+            % Reset everything thus clearing up memory as well
+            % Use introspection to get all properties on class and reset
+            % them
+            metaClassObject = metaclass(obj);
+            for i=1:length(metaClassObject.Properties)
+                obj.(metaClassObject.Properties{i}.Name) = [];
+            end
+            
+            obj.setParameterDefaultValues;
         end
         
         function success = encodeToFile(obj, fileName)
@@ -164,7 +189,7 @@ classdef JPEGEncoder < handle
                 % no struct so create from matrix
                 obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix, obj.chromaSamplingMode );
             end
-                        
+
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
       
@@ -313,7 +338,16 @@ classdef JPEGEncoder < handle
             %      entries in zig-zag order (64 bytes (or 128 if 16bit Pq))
             %
             % * Huffman Tables:
-            %   1)
+            %   1) Define Huffman Table marker (DHT)
+            %   2) Segment length (Lh, 2 bytes) followed, for each table to
+            %      be specified: 1 packed byte with top 4 bits specifying
+            %      the type of table (0 for DC, 1 for AC) and lower 4 bits
+            %      are the table ID (Tc:Th, 1 bytes), 16 bytes specifying
+            %      the number of Huffman codes per code length Li (Li, i =
+            %      1:16, 16 bytes), then come the values associated with
+            %      each Huffman code. The V{i,j} value is the value for the
+            %      j'th code of length i. The values are grouped in length
+            %      order.
             %
             % Since a number of segments are not used in the implementation
             % they are not discussed further. Please refer to the standards
@@ -530,11 +564,75 @@ classdef JPEGEncoder < handle
         end
 
         function bits = createBitStreamForHuffmanTables(obj)
+            % --------------------------
+            % Huffman Table entries
+            % --------------------------
+            % Ref: CCITT Rec. T.81 (1992 E)	p.40
             
-            markerDefineHuffmanTable        = Utilities.hexToShort('FFC4');%dec2bin(hex2dec('FFC4'),16);
+            % 4 TABLES
+            
+            % Define Huffman Table (DHT)
+            markerDefineHuffmanTable    = Utilities.hexToShort('FFC4');
+
+            % Lh - 4 tables * (17 bytes + numberOfValuesPerTable)
+            segmentLength               = Utilities.decimalToShort(2 + ...
+                                            (17 + length(EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode)) + ...
+                                            (17 + length(EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode)) + ...
+                                            (17 + length(EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode)) + ...
+                                            (17 + length(EntropyCoding.ChromaACHuffmanSymbolValuesPerCode)));
+            
+            % Per table:
+            % Luminance (ID 0) DC
+            % Tc:Th
+            luminanceTableDCTypeAndID    = Utilities.decimalNibblesToByte(0, 0);
+            
+            % Li 
+            luminanceTableDCLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+            % Vi,j
+            luminanceTableDCValues      = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+            
+            % AC
+            % Tc:Th
+            luminanceTableACTypeAndID    = Utilities.decimalNibblesToByte(1, 0);
+            
+            % Li 
+            luminanceTableACLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+            % Vi,j
+            luminanceTableACValues      = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+
+            % Chroma (ID 1) DC 
+            % Tc:Th
+            chromaTableDCTypeAndID      = Utilities.decimalNibblesToByte(0, 1);
+            
+            % Li 
+            chromaTableDCLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+            % Vi,j
+            chromaTableDCValues         = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+            
+            % AC
+            % Tc:Th
+            chromaTableACTypeAndID      = Utilities.decimalNibblesToByte(1, 1);
+            
+            % Li 
+            chromaTableACLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+            % Vi,j
+            chromaTableACValues         = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
             
             bits = cat(2, ...
-                markerDefineHuffmanTable ...
+                markerDefineHuffmanTable, ...
+                segmentLength, ...
+                luminanceTableDCTypeAndID, ...
+                luminanceTableDCLengthCounts, ...
+                luminanceTableDCValues, ...
+                luminanceTableACTypeAndID, ...
+                luminanceTableACLengthCounts, ...
+                luminanceTableACValues, ...
+                chromaTableDCTypeAndID, ...
+                chromaTableDCLengthCounts, ...
+                chromaTableDCValues, ...
+                chromaTableACTypeAndID, ...
+                chromaTableACLengthCounts, ...
+                chromaTableACValues ...
                 );
         end
 
