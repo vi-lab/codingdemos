@@ -8,9 +8,11 @@ clear classes
     obj.imageEncoder = JPEGEncoder();
     %obj.imageEncoder.input = 'lena_color_odd.bmp';
     obj.imageEncoder.input = 'lena_color_256.bmp';
-    obj.imageEncoder.qualityFactor = 95;
+    %obj.imageEncoder.input = 'lena_color_512.bmp';
+    obj.imageEncoder.qualityFactor = 75;
+    tic
     obj.imageEncoder.encode();
-    
+    toc
     success = true;
 %{
 catch ME

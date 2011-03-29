@@ -1,9 +1,9 @@
-function [ binary ] = decimalToBinary( dec, lengthInBits )
+function [ binary ] = decimalToLogical( dec, lengthInBits )
 %DECIMALTOBINARY Summary of this function goes here
 %   Detailed explanation goes here
 
 if ~isnumeric(dec)
-    throw(MException('Utilities:decimalToBinary', 'The decimal must be a numeric value.'));
+    throw(MException('Utilities:decimalToLogical', 'The decimal must be a numeric value.'));
 end
 
 %negative numbers in 2s compliment
@@ -16,7 +16,7 @@ else
 end
 
 if lengthInBits < length(binary)
-    throw(MException('Utilities:decimalToBinary', 'The number can not fit in the specified number of bits.'));
+    throw(MException('Utilities:decimalToLogical', 'The number can not fit in the specified number of bits.'));
 end
 
 end

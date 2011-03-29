@@ -14,17 +14,27 @@ function [ encodedLogicalBitArray ] = encodeACZerosRunLengthValue( runLength, va
 % end of the block (ie there are no more RS values for this
 % block.
 
-% This could be optimised as a look up table
-lengthInBits = ceil( log2(abs(value) + 1) );
-
-RS = Utilities.decimalNibblesToByte(runLength, lengthInBits);
-
-if value > 0
-    valueBits = Utilities.decimalToByte(value);
+if runLength == 0 && value == 0
+    % EOB : end of block marker
+    encodedLogicalBitArray = huffmanTable{1};
 else
-    valueBits = Utilities.decimalToByte(value - 1);
-end
+    % This could be optimised as a look up table
+    lengthInBits = ceil( log2(abs(value) + 1) );
 
-encodedLogicalBitArray = [huffmanTable{RS + 1} valueBits(end - (lengthInBits - 1):end)];
+    %RSbinary = Utilities.decimalNibblesToByte(runLength, lengthInBits)
+    RS = (runLength * 16) + lengthInBits;
+
+    % For AC coeffs the magnitude can be up to 10 bits long
+    % Ref: CCITT Rec. T.81 (1992 E) p.90
+    if value < 0
+        value = value - 1;
+    end
+
+    valueBits = Utilities.decimalToLogical(value,  10);
+    % Note that the most significant bit of the appended bit sequence is 0 for
+    % negative differences and 1 for positive differences.
+    extraBitsForMagnitude = valueBits(end - (lengthInBits - 1):end);
+    encodedLogicalBitArray = [huffmanTable{RS + 1} extraBitsForMagnitude];
+end
 
 end

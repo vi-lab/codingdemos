@@ -20,16 +20,16 @@ try
     end
     
 	% decimal To Byte
-    if ~isequal(logical([0 1 1 1 1 0]), Utilities.decimalToBinary(30, 6))
-        throw(MException('unittest:binaryConversions','decimalToBinary 1 failed'));
+    if ~isequal(logical([0 1 1 1 1 0]), Utilities.decimalToLogical(30, 6))
+        throw(MException('unittest:binaryConversions','decimalToLogical 1 failed'));
     end
     try
-        Utilities.decimalToBinary(1001,3);
-        throw(MException('unittest:binaryConversions','decimalToBinary 2 failed'));
+        Utilities.decimalToLogical(1001,3);
+        throw(MException('unittest:binaryConversions','decimalToLogical 2 failed'));
     catch e
     end
-    if ~isequal(logical([1 1 1 0]), Utilities.decimalToBinary(-2, 4))
-        throw(MException('unittest:binaryConversions','decimalToBinary 3 failed'));
+    if ~isequal(logical([1 1 1 0]), Utilities.decimalToLogical(-2, 4))
+        throw(MException('unittest:binaryConversions','decimalToLogical 3 failed'));
     end
     
     if ~isequal(logical([0 1 1 1 1 0 1 1]), Utilities.decimalToByte(123))

@@ -7,6 +7,6 @@ if ~isnumeric(dec)
 end
 
 %short = logical('1'==dec2bin(uint16(dec), 16));
-short = Utilities.decimalToBinary(dec, 16);
+short = Utilities.decimalToLogical(dec, 16);
 
 end

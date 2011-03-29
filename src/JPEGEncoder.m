@@ -266,9 +266,14 @@ classdef JPEGEncoder < handle
 
             % Huffman Code AC Values
             % Ref: CCITT Rec. T.81 (1992 E) p.89
+            %   Luminance
             codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
             symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
             huffmanCodesForACLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+            %   Chroma
+            codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
+            symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
+            huffmanCodesForACChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
             
             % Note, at this point the zerosRunLengthCoding has already
             % handled the special RS value cases, so the entries need
@@ -278,29 +283,63 @@ classdef JPEGEncoder < handle
             % first find -1s
             %[x,y] = meshgrid(1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,1), 1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,2));
             flatCoeffs = reshape(obj.yZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.yZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.yZerosRunLengthCodedOrderedACCoefficients,2)]);
-            for i = 1:126:length(flatCoeffs)
+            blockStartIndexes = 1:126:length(flatCoeffs);
+            for i = 1:length(blockStartIndexes)
                 % For each block (raster order)
-                lengths = obj.yZerosRunLengthCodedOrderedACCoefficients(i:i+62);
-                values = obj.yZerosRunLengthCodedOrderedACCoefficients(i+63:i+125);
+                idx = blockStartIndexes(i);
+                lengths = flatCoeffs(idx:idx+62);
+                values = flatCoeffs(idx+63:idx+125);
                 lastIndex = find( lengths == -1, 1);
-                lengths = length(1:lastIndex);
-                values = values(1:lastIndex);
-                obj.yEncodedACCellArray(i) = arrayfun(@(runLength, value)(EntropyCoding.encodeACValue(runLength, value, huffmanCodesForACLuminanceCellArray)), ...
+                lengths = lengths(1:lastIndex - 1);
+                values = values(1:lastIndex - 1);
+                obj.yEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACLuminanceCellArray)), ...
                                                 lengths, ... % lengths
                                                 values, ... % values
                                                 'UniformOutput', false);
             end
             
-            codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
-            symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-            huffmanCodesForACChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+            clear flatCoeffs;
             
             % cb
-            obj.cbEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.cbZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
-
+            %obj.cbEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.cbZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
+            flatCoeffs = reshape(obj.cbZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.cbZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.cbZerosRunLengthCodedOrderedACCoefficients,2)]);
+            blockStartIndexes = 1:126:length(flatCoeffs);
+            for i = 1:length(blockStartIndexes)
+                % For each block (raster order)
+                idx = blockStartIndexes(i);
+                lengths = flatCoeffs(idx:idx+62);
+                values = flatCoeffs(idx+63:idx+125);
+                lastIndex = find( lengths == -1, 1);
+                lengths = lengths(1:lastIndex - 1);
+                values = values(1:lastIndex - 1);
+                obj.cbEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
+                                                lengths, ... % lengths
+                                                values, ... % values
+                                                'UniformOutput', false);
+            end
+            
+            clear flatCoeffs;
+            
             % cr
-            obj.crEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.crZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
-
+            %obj.crEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.crZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
+            flatCoeffs = reshape(obj.crZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.crZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.crZerosRunLengthCodedOrderedACCoefficients,2)]);
+            blockStartIndexes = 1:126:length(flatCoeffs);
+            for i = 1:length(blockStartIndexes)
+                % For each block (raster order)
+                idx = blockStartIndexes(i);
+                lengths = flatCoeffs(idx:idx+62);
+                values = flatCoeffs(idx+63:idx+125);
+                lastIndex = find( lengths == -1, 1);
+                lengths = lengths(1:lastIndex - 1);
+                values = values(1:lastIndex - 1);
+                obj.crEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
+                                                lengths, ... % lengths
+                                                values, ... % values
+                                                'UniformOutput', false);
+            end
+            
+            clear flatCoeffs;
+            
             % Create the output bitstream
             stream = obj.createBitStream();
         end
@@ -337,7 +376,7 @@ classdef JPEGEncoder < handle
             [huffsize, lastk] = EntropyCoding.generateTableOfHuffmanCodeSizes(bits);
             huffcode = EntropyCoding.generateTableOfHuffmanCodes(huffsize);
             [ehufco, ehufsi] = EntropyCoding.generateEncodingProcedureCodeTables( huffvals, huffcode, huffsize, lastk );
-            huffmanCodesCellArray = arrayfun(@Utilities.decimalToBinary, ehufco, ehufsi, 'UniformOutput', false);
+            huffmanCodesCellArray = arrayfun(@Utilities.decimalToLogical, ehufco, ehufsi, 'UniformOutput', false);
         end
         
         function stream = createBitStream(obj)

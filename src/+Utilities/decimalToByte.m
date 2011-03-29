@@ -11,6 +11,6 @@ if dec < -128
     dec = -128;
 end
 %byte = logical('1'==dec2bin(uint8(dec), 8));
-byte = Utilities.decimalToBinary(dec, 8);
+byte = Utilities.decimalToLogical(dec, 8);
 
 end

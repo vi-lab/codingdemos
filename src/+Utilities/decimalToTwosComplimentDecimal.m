@@ -10,12 +10,23 @@ if ~(dec < 0)
     throw(MException('Utilities:decimalTwosCompliment', 'You can only get the 2''s compliment of a negative number.'));
 end
 
-binary = num2str('0'==dec2bin(abs(dec), lengthInBits), '%d');
 
-if lengthInBits < length(binary)
-    throw(MException('Utilities:decimalToBinary', 'The number can not fit in the specified number of bits.'));
+if lengthInBits < 9
+    decCast = typecast(int8(dec), 'uint8');
+elseif lengthInBits < 17
+    decCast = typecast(int16(dec), 'uint16');
+elseif lengthInBits < 33
+    decCast = typecast(int32(dec), 'uint32');
 end
 
-value = bin2dec(binary) + 1;
+mask = (2^lengthInBits) - 1;
+value = bitand(decCast, mask); % strop off unwanted bits
+
+% Below is the old very slow way
+%binary = num2str('0'==dec2bin(abs(dec), lengthInBits), '%d');
+%if lengthInBits < length(binary)
+%    throw(MException('Utilities:decimalTwosCompliment', 'The number can not fit in the specified number of bits.'));
+%end
+%value = bin2dec(binary) + 1;
 
 end
