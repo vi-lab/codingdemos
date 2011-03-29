@@ -6,6 +6,7 @@ if ~isnumeric(dec)
     throw(MException('Utilities:decimalToShort', 'The decimal must be a numeric value in the range of a uint16.'));
 end
 
-short = logical('1'==dec2bin(uint16(dec), 16));
+%short = logical('1'==dec2bin(uint16(dec), 16));
+short = Utilities.decimalToBinary(dec, 16);
 
 end

@@ -3,9 +3,14 @@ function [ byte ] = decimalToByte( dec )
 %   Detailed explanation goes here
 
 if ~isnumeric(dec)
-    throw(MException('Utilities:decimalToByte', 'The decimal must be a numeric value in the range of a uint8.'));
+    throw(MException('Utilities:decimalToByte', 'The decimal must be a numeric value.'));
 end
+% clamp at range
 
-byte = logical('1'==dec2bin(uint8(dec), 8));
+if dec < -128
+    dec = -128;
+end
+%byte = logical('1'==dec2bin(uint8(dec), 8));
+byte = Utilities.decimalToBinary(dec, 8);
 
 end
