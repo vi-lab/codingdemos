@@ -1,15 +1,16 @@
-function rlcdata = zerosRunLengthCoding(zigzag, maxlength)
+function rlcData = zerosRunLengthCoding(zigzag)
 
 % COMMENT ME UP
 
-if ~exist('maxlength', 'var')
-    maxlength = 15;
-end
+% TODO: optimise away some for loops and maybe rethink this, ie not use
+% blkproc and use something else
 
 % We use -1 padding. A count of -1 means this pair is nothing and end of
 % data. We need the padding so output of blkproc is equal for each block
 % and thus can be joined into one output matrix
-rlcdata = -ones(1, 64);
+%rlcdata = ones(1, 64);
+runLengths =    -ones(1, 63);
+values =        -ones(1, 63);
 
 %DCvalue = zigzag(1);
 ACvalues = zigzag(2:end);
@@ -21,7 +22,9 @@ prev = 0;
 
 for i = 1:length(ind)
     %RLCruns(i) = ind(i) - prev - 1;
-    rlcdata((i*2)-1: i*2) = [(ind(i) - prev - 1) ACvalues(ind(i))];
+    %rlcdata((i*2)-1: i*2) = [(ind(i) - prev - 1) ACvalues(ind(i))];
+    runLengths(i)   = (ind(i) - prev - 1);
+    values(i)       = ACvalues(ind(i));
     prev = ind(i);
 end
 if prev ~= length(ACvalues)
@@ -33,24 +36,33 @@ if prev ~= length(ACvalues)
         i = 0;
     end
     i = i + 1;
-    rlcdata((i*2)-1: i*2) = [0 0];
+    %rlcdata((i*2)-1: i*2) = [0 0];
+    runLengths(i)   = 0;
+    values(i)       = 0;
 end
 %RLCvalues = ACvalues(ind);
 
 
 % Now must handle special JPEG standard case limiting zeros to 15 for run
-for i=1:2:length(rlcdata)
-    if  rlcdata(i) > 15 
+for i=1:length(runLengths)
+    if  runLengths(i) > 15 
         % Work out how many (15,0)s are needed and insert
-        fifteenzs = floor(rlcdata(i) / 15);
-        remz = rem(rlcdata(i), 15);
+        fifteenzs = floor(runLengths(i) / 15);
+        remz = rem(runLengths(i), 15);
         % Update with remainder zeros number
-        rlcdata(i) = remz;
+        runLengths(i) = remz;
         % Insert (15,0)s
         for k=1:fifteenzs
-            rlcdata = [rlcdata(1:i-1) 15 0 rlcdata(i:end - 2)]; % insert and remove last 2 values which will be -1s
+            runLengths = [runLengths(1:i-1) 15 runLengths(i:end - 1)]; % insert and remove last 2 values which will be -1s
+            values = [values(1:i-1) 0 values(i:end - 1)]; % insert and remove last 2 values which will be -1s
         end
     end
 end
+%zigzag
+%runLengths
+%values
+
+rlcData = [runLengths values];
+
 
 return

@@ -30,18 +30,27 @@ classdef JPEGEncoder < handle
         yOrderedCoefficients
         yZerosRunLengthCodedOrderedACCoefficients
         yDCCoefficients
+        yDifferentialDCCoefficients
+        yEncodedDCCellArray
+        yEncodedACCellArray
         
         cbCoefficients
         cbQuantisedCoefficients
         cbOrderedCoefficients
         cbZerosRunLengthCodedOrderedACCoefficients
         cbDCCoefficients
+        cbDifferentialDCCoefficients
+        cbEncodedDCCellArray
+        cbEncodedACCellArray
         
         crCoefficients
         crQuantisedCoefficients
         crOrderedCoefficients
         crZerosRunLengthCodedOrderedACCoefficients
         crDCCoefficients
+        crDifferentialDCCoefficients
+        crEncodedDCCellArray
+        crEncodedACCellArray
         
         %{
         luminanceDCHuffmanCodeCountPerCodeLength    % BITS
@@ -146,7 +155,7 @@ classdef JPEGEncoder < handle
             % Returns:
             %
             
-            success = Utilities.writeBinaryFileFromArray( fileName, Utilities.binaryToNumericArray(obj.encode()) );
+            success = Utilities.writeBinaryFileFromArray( fileName, Utilities.logicalArrayToUnsignedNumericArray(obj.encode()));
         end
 
         function stream = encode(obj)
@@ -198,46 +207,100 @@ classdef JPEGEncoder < handle
             
             % Perform DCT and quant, blkproc handles image extension for
             % edge blocks smaller than 8x8
-            obj.yCoefficients = blkproc(obj.imageStruct.y, [8 8], @dct2);
+            obj.yCoefficients = blkproc(obj.imageStruct.yLevelShifted, [8 8], @dct2);
             obj.yQuantisedCoefficients = blkproc(obj.yCoefficients, [8 8], @(block)obj.quantiseLuminanceCoefficients(block));
             
-            obj.cbCoefficients = blkproc(obj.imageStruct.cb, [8 8], @dct2);
+            obj.cbCoefficients = blkproc(obj.imageStruct.cbLevelShifted, [8 8], @dct2);
             obj.cbQuantisedCoefficients = blkproc(obj.cbCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
             
-            obj.crCoefficients = blkproc(obj.imageStruct.cr, [8 8], @dct2);
+            obj.crCoefficients = blkproc(obj.imageStruct.crLevelShifted, [8 8], @dct2);
             obj.crQuantisedCoefficients = blkproc(obj.crCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
             
             % Zigzag
-            obj.yOrderedCoefficients = blkproc(obj.yQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            obj.cbOrderedCoefficients = blkproc(obj.cbQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            obj.crOrderedCoefficients = blkproc(obj.crQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
+            obj.yOrderedCoefficients    = blkproc(obj.yQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
+            obj.cbOrderedCoefficients   = blkproc(obj.cbQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
+            obj.crOrderedCoefficients   = blkproc(obj.crQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
             
             % RLE
-            obj.yZerosRunLengthCodedOrderedACCoefficients = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            obj.cbZerosRunLengthCodedOrderedACCoefficients = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            obj.crZerosRunLengthCodedOrderedACCoefficients = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
+            % blkproc can only return numeric array data of equal size for
+            % each block. Hence zerosRunLengthCoding returns the zeroLength
+            % and values in a concatenated 126 values array, with -1s
+            % padding the unused values (lengths:values)
+            obj.yZerosRunLengthCodedOrderedACCoefficients   = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
+            obj.cbZerosRunLengthCodedOrderedACCoefficients  = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
+            obj.crZerosRunLengthCodedOrderedACCoefficients  = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
             
             % DC coefficient lists
-            obj.yDCCoefficients = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
-            obj.cbDCCoefficients = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
-            obj.crDCCoefficients = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+            obj.yDCCoefficients     = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+            obj.cbDCCoefficients    = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+            obj.crDCCoefficients    = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
               
-            % Differentially code DC
+            % Differentially code DC 
+            obj.yDifferentialDCCoefficients     = TransformCoding.differentiallyCodeDC(obj.yDCCoefficients);
+            obj.cbDifferentialDCCoefficients    = TransformCoding.differentiallyCodeDC(obj.cbDCCoefficients);
+            obj.crDifferentialDCCoefficients    = TransformCoding.differentiallyCodeDC(obj.crDCCoefficients);
             
-            % diffs 
-            % range/length
+            % Huffman Code DC Values
+            % Ref: CCITT Rec. T.81 (1992 E) p.88
+            %
+            % The following generates the table of Huffman codes which
+            % represent the 12 luminance DC difference categories (or
+            % ranges). The codes are generated so that there is no chance
+            % of a code consisting only of 1s.
+            codeLengths = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
+            symbolValues = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
+            huffmanCodesForDCLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
             
+            % The DC value for each block in raster order
+            obj.yEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCLuminanceCellArray)), obj.yDifferentialDCCoefficients, 'UniformOutput', false);
             
-            % Code AC
+            % The Chroma DC Huffman code table for the 12 categories 
+            codeLengths = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
+            symbolValues = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
+            huffmanCodesForDCChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
             
-            % range/length
- 
+            % The DC value for each block in raster order
+            obj.cbEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.cbDifferentialDCCoefficients, 'UniformOutput', false);
+            % The DC value for each block in raster order
+            obj.crEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.crDifferentialDCCoefficients, 'UniformOutput', false);
+
+            % Huffman Code AC Values
+            % Ref: CCITT Rec. T.81 (1992 E) p.89
+            codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
+            symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
+            huffmanCodesForACLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
             
+            % Note, at this point the zerosRunLengthCoding has already
+            % handled the special RS value cases, so the entries need
+            % simply encoding (-1 values are to be ignored)
             
-            % Generate Huffman tables
-            % p 50. Annex C
+            % y
+            % first find -1s
+            %[x,y] = meshgrid(1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,1), 1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,2));
+            flatCoeffs = reshape(obj.yZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.yZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.yZerosRunLengthCodedOrderedACCoefficients,2)]);
+            for i = 1:126:length(flatCoeffs)
+                % For each block (raster order)
+                lengths = obj.yZerosRunLengthCodedOrderedACCoefficients(i:i+62);
+                values = obj.yZerosRunLengthCodedOrderedACCoefficients(i+63:i+125);
+                lastIndex = find( lengths == -1, 1);
+                lengths = length(1:lastIndex);
+                values = values(1:lastIndex);
+                obj.yEncodedACCellArray(i) = arrayfun(@(runLength, value)(EntropyCoding.encodeACValue(runLength, value, huffmanCodesForACLuminanceCellArray)), ...
+                                                lengths, ... % lengths
+                                                values, ... % values
+                                                'UniformOutput', false);
+            end
             
+            codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
+            symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
+            huffmanCodesForACChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
             
+            % cb
+            obj.cbEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.cbZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
+
+            % cr
+            obj.crEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.crZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
+
             % Create the output bitstream
             stream = obj.createBitStream();
         end
@@ -257,9 +320,9 @@ classdef JPEGEncoder < handle
             
             %%%%% After a non-differential frame decoding process computes
             %%%%% the IDCT and produces a block of reconstructed image samples, an inverse level shift shall restore the samples to the unsigned representation by adding 2P ? 1 and clamping the results to the range 0 to 2P ? 1.
-            obj.imageStruct.y   = int8(double(obj.imageStruct.y) - 128);
-            obj.imageStruct.cb  = int8(double(obj.imageStruct.cb) - 128);
-            obj.imageStruct.cr  = int8(double(obj.imageStruct.cr) - 128);
+            obj.imageStruct.yLevelShifted   = int8(double(obj.imageStruct.y) - 128);
+            obj.imageStruct.cbLevelShifted  = int8(double(obj.imageStruct.cb) - 128);
+            obj.imageStruct.crLevelShifted  = int8(double(obj.imageStruct.cr) - 128);
         end
         
         function coeffs = quantiseLuminanceCoefficients(obj, block)
@@ -268,6 +331,13 @@ classdef JPEGEncoder < handle
         
         function coeffs = quantiseChromaCoefficients(obj, block)
             coeffs = TransformCoding.chromaQuantisation(block, obj.chromaScaledQuantisationTable);
+        end
+        
+        function huffmanCodesCellArray = createHuffmanCodes(obj, bits, huffvals)
+            [huffsize, lastk] = EntropyCoding.generateTableOfHuffmanCodeSizes(bits);
+            huffcode = EntropyCoding.generateTableOfHuffmanCodes(huffsize);
+            [ehufco, ehufsi] = EntropyCoding.generateEncodingProcedureCodeTables( huffvals, huffcode, huffsize, lastk );
+            huffmanCodesCellArray = arrayfun(@Utilities.decimalToBinary, ehufco, ehufsi, 'UniformOutput', false);
         end
         
         function stream = createBitStream(obj)
@@ -383,10 +453,12 @@ classdef JPEGEncoder < handle
             % Entropy Coded Segment
             % -----------
             % TODO:
-            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00
-            % !!!!!!!
+            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00 ==
+            % BYTE STUFFING
+            % !!!!!!! 
             % PAD with 1s to end if nec (I think) -- div by 8 and remainder
             % is how many bits need adding
+            
             
             bits = [];
         end
