@@ -45,6 +45,9 @@ end
 
 % Now must handle special JPEG standard case limiting zeros to 15 for run
 for i=1:length(runLengths)
+    if runLengths(i) < 0
+        break;
+    end
     if  runLengths(i) > 15 
         % Work out how many (15,0)s are needed and insert
         fifteenzs = floor(runLengths(i) / 15);
