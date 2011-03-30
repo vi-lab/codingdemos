@@ -13,6 +13,10 @@ clear classes
     tic
 	obj.imageEncoder.encodeToFile('test.jpg');    
     toc
+    
+    % decode
+    !jpeg_c/jpeg -d test
+    
     UnitTests.displayCJPEGDecode('test')
     
     success = true;
