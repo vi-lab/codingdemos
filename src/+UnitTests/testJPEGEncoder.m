@@ -11,8 +11,10 @@ clear classes
     %obj.imageEncoder.input = 'lena_color_512.bmp';
     obj.imageEncoder.qualityFactor = 75;
     tic
-    obj.imageEncoder.encode();
+	obj.imageEncoder.encodeToFile('test.jpg');    
     toc
+    UnitTests.displayCJPEGDecode('test')
+    
     success = true;
 %{
 catch ME

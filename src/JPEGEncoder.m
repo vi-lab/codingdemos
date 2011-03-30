@@ -400,6 +400,11 @@ classdef JPEGEncoder < handle
             % 1) [TABLES]
             % 2) [FRAMEHEADER]
             % 3) [SCAN]
+            % 4) <[SCAN>] <- optionally more scans containing channels
+            % 5) ...
+            %
+            % Note: all channels can be interleaved into 1 SCAN or they can
+            % be kept non-interleaved with 1 SCAN segment per channel.
             %
             % A [FRAMEHEADER] is composed of:
             % 1) A Start of Frame Marker defining the mode (SOFx)
@@ -420,7 +425,7 @@ classdef JPEGEncoder < handle
             %
             % A [SCANHEADER] is composed of:
             % 1) A Start of Scan marker (SOS)
-            % 2) 11 bytes (for 3 channels) comprising of: Header length
+            % 2) 6 + (2*3) bytes (for 3 channels) comprising of: Header length
             % (Ls, 2 bytes), number of channels in scan (Ns, 1 byte), a 2
             % byte sequence for each colour channel: the ID (Csi 1 byte),
             % then 2 packed nibbles of the DC entropy coding table ID & the
@@ -464,45 +469,70 @@ classdef JPEGEncoder < handle
             
             % Ref: CCITT Rec. T.81 (1992 E)	p. 32
             % SOI : Marks start of a JPEG image
-            markerStartOfImage          = Utilities.hexToShort('FFD8');%dec2bin(hex2dec('FFD8'),16);
+            markerStartOfImage          = Utilities.hexToShort('FFD8');
             % EOI : Marks the end of the JPEG file
-            markerEndOfImage            = Utilities.hexToShort('FFD9');%dec2bin(hex2dec('FFD9'),16);
+            markerEndOfImage            = Utilities.hexToShort('FFD9');
             
             frameHeader = obj.createBitStreamForFrameHeader();
             quantisationTables = obj.createBitStreamForQuantisationTables();
             huffmanTables = obj.createBitStreamForHuffmanTables();
+                        
+            scanHeaderY = obj.createBitStreamForScanHeaderForSingleChannel('y');
+            entropyCodedSegmentY = obj.createBitStreamForEntropyCodedDataForSingleChannel('y');
             
-            scanHeader = obj.createBitStreamForScanHeader();
+            scanHeaderCb = obj.createBitStreamForScanHeaderForSingleChannel('cb');
+            entropyCodedSegmentCb = obj.createBitStreamForEntropyCodedDataForSingleChannel('cb');
             
-            entropyCodedSegment = obj.createBitStreamForEntropyCodedData();
+            scanHeaderCr = obj.createBitStreamForScanHeaderForSingleChannel('cr');
+            entropyCodedSegmentCr = obj.createBitStreamForEntropyCodedDataForSingleChannel('cr');
             
             stream = cat(2, markerStartOfImage, ... % SOI
                 quantisationTables, ... % Tables for this image
                 huffmanTables, ...
                 frameHeader, ...
-                scanHeader,...
-                entropyCodedSegment, ...
-                markerEndOfImage);  % EOI
+                scanHeaderY,...
+                entropyCodedSegmentY, ...
+                scanHeaderCb,...
+                entropyCodedSegmentCb, ...
+                scanHeaderCr,...
+                entropyCodedSegmentCr, ...
+            markerEndOfImage);  % EOI
 
             obj.output = stream;
         end
         
-        function bits = createBitStreamForEntropyCodedData(obj)
+        function bits = createBitStreamForEntropyCodedDataForSingleChannel(obj, type)
             % -----------
             % Entropy Coded Segment
             % -----------
-            % TODO:
-            % DONT FORGET TO PADD 0xFFs in Huffman coded data with 0x00 ==
-            % BYTE STUFFING
-            % !!!!!!! 
-            % PAD with 1s to end if nec (I think) -- div by 8 and remainder
-            % is how many bits need adding
-            
             
             bits = [];
+            
+            switch type
+                case 'y'
+                    dcCell = obj.yEncodedDCCellArray;
+                    acCell = obj.yEncodedACCellArray;
+                case 'cb'
+                    dcCell = obj.cbEncodedDCCellArray;
+                    acCell = obj.cbEncodedACCellArray;
+                case 'cr'
+                    dcCell = obj.crEncodedDCCellArray;
+                    acCell = obj.crEncodedACCellArray;
+            end
+            
+            for i=1:length(dcCell)
+                bits = cat(2, bits, dcCell{i});
+                for j=1:length(acCell{i})
+                    bits = cat(2, bits, acCell{i}{j});
+                end
+            end
+
+            bits = Utilities.padLogicalArray(bits, 8, 1);
+            bits = Utilities.byteStuffing(bits, 8);
+
         end
         
-        function bits = createBitStreamForScanHeader(obj)
+        function bits = createBitStreamForScanHeaderForSingleChannel(obj, type)
             % -----------
             % Scan Header
             % -----------
@@ -513,8 +543,48 @@ classdef JPEGEncoder < handle
             % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
             
             % SOS marker
-            markerStartOfScan       = Utilities.hexToShort('FFDA');%dec2bin(hex2dec('FFDA'), 16);
+            markerStartOfScan       = Utilities.hexToShort('FFDA');
             
+            % Ls    (2 bytes)
+            segmentLength       = Utilities.decimalToShort(6 + (2*1));
+            % Ns    (1 byte)
+            componentCount      = Utilities.decimalToByte(1);
+            switch type
+                case 'y'
+                    % Cs1   (1 byte)
+                    channelID          = Utilities.decimalToByte(1);
+                    % Td1:Ta1 (1 byte)
+                    channelTableIDs    = Utilities.decimalNibblesToByte(0, 0);
+                case 'cb'
+                    % Cs2   (1 byte)
+                    channelID         = Utilities.decimalToByte(2);
+                    % Td2:Ta2 (1 byte)
+                    channelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
+                case 'cr'
+                    % Cs3   (1 byte)
+                    channelID         = Utilities.decimalToByte(3);
+                    % Td3:Ta3 (1 byte)
+                    channelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
+            end
+            % Ss    (1 byte)
+            startPredictorID    = Utilities.decimalToByte(0);
+            % Se    (1 byte)
+            endPredictorID      = Utilities.decimalToByte(63);
+            % Ah:Al (1 byte)
+            successiveApproximationBitPosition = Utilities.decimalNibblesToByte(0, 0);
+            
+            bits = cat(2, ...
+                markerStartOfScan, ...
+                segmentLength, ...
+                componentCount, ...
+                channelID, ...
+                channelTableIDs, ...
+                startPredictorID, ...
+                endPredictorID, ...
+                successiveApproximationBitPosition ...
+                );
+
+            %{
             % Ls    (2 bytes)
             segmentLength       = Utilities.decimalToShort(6 + (2*3));
             % Ns    (1 byte)
@@ -552,6 +622,7 @@ classdef JPEGEncoder < handle
                 endPredictorID, ...
                 successiveApproximationBitPosition ...
                 );
+            %}
         end
         
         function bits = createBitStreamForFrameHeader(obj)
@@ -563,7 +634,7 @@ classdef JPEGEncoder < handle
             % http://en.wikibooks.org/wiki/JPEG_-_Idea_and_Practice/The_header_part
             
             % SOF0 : Marks that this is a Baseline DCT mode JPEG
-            markerStartOfFrame_Mode0    = Utilities.hexToShort('FFC0');%dec2bin(hex2dec('FFC0'),16);
+            markerStartOfFrame_Mode0    = Utilities.hexToShort('FFC0');
             
             % Here is a header from a real JPEG using 4:2:2
             % FF C0, 00 11, 08, 01 90, 02 80, 03, 01, 21, 00, 02, 11, 01, 03, 11, 01
