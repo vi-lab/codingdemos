@@ -6,16 +6,16 @@ if ~exist('byteLength', 'var')
     byteLength = 8;
 end
 
-stuffedArray = [];
+stuffedArray = array;
+len = length(stuffedArray);
 
-for i=1:byteLength:length(array)
-    values = array(i:i + byteLength - 1);
+for i=1:byteLength:len
+    values = stuffedArray(i:i + byteLength - 1);
 
-    stuffedArray = cat(2, stuffedArray, values);
-        
-    if max(values) == 1 && min(values) == 1
+    if sum(values) == 8
         % Stuff in byteLength 0s
-        stuffedArray = cat(2, stuffedArray, false(1, byteLength));
+        stuffedArray = cat(2, stuffedArray(1:i + byteLength - 1), false(1, byteLength), stuffedArray(i + byteLength:end));
+        len = len + byteLength;
     end
 end
 

@@ -521,10 +521,7 @@ classdef JPEGEncoder < handle
             end
             
             for i=1:length(dcCell)
-                bits = cat(2, bits, dcCell{i});
-                for j=1:length(acCell{i})
-                    bits = cat(2, bits, acCell{i}{j});
-                end
+                bits = cat(2, bits, dcCell{i}, cell2mat(acCell{i}));
             end
 
             bits = Utilities.padLogicalArray(bits, 8, 1);
