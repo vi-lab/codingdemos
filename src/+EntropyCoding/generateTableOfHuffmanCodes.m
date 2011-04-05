@@ -7,7 +7,7 @@ function [ HUFFCODE ] = generateTableOfHuffmanCodes( HUFFSIZE )
 K = 1;
 CODE = uint16(0);
 SI = HUFFSIZE(1);
-
+HUFFCODE = zeros(1,length(HUFFSIZE));
 % use these to emulate do-while loops as per the flow diagrams in the spec
 conditionA = true;
 

@@ -52,24 +52,13 @@ classdef JPEGEncoder < handle
         crEncodedDCCellArray
         crEncodedACCellArray
         
-        %{
-        luminanceDCHuffmanCodeCountPerCodeLength    % BITS
-        luminanceDCHuffmanSymbolValuesPerCode   % HUFFVAL
-        chromaDCHuffmanCodeCountPerCodeLength    % BITS
-        chromaDCHuffmanSymbolValuesPerCode   % HUFFVAL
-
-        luminanceACHuffmanCodeCountPerCodeLength    % BITS
-        luminanceACHuffmanSymbolValuesPerCode   % HUFFVAL
-        chromaACHuffmanCodeCountPerCodeLength    % BITS
-        chromaACHuffmanSymbolValuesPerCode   % HUFFVAL
-        %}
         output
     end
 
     methods
         function obj = JPEGEncoder(source)
             if exist('source','var')
-                obj.input(source);
+                obj.input = source;
             end
             obj.setParameterDefaultValues;
         end
