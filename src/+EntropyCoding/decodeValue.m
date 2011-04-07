@@ -9,7 +9,8 @@ curBit = startBitLocation;
 
 % this could be called number of times per byte if code is less than 1 byte
 % long. maybe could compute before call this method so result is cached
-bits = Utilities.decimalToByte(data(curByte));
+%bits = Utilities.decimalToByte(data(curByte));
+bits = Utilities.unsignedDecimalToByteWithLookupTable(data(curByte));
 
 CODE = uint16(bits(curBit));%Utilities.getBitFromNumericData(data, curByte, curBit);
 
@@ -34,7 +35,8 @@ while typecast(CODE, 'int16') > MAXCODE(I)
         curBit = 1;
         curByte = curByte + 1;
         
-        bits = Utilities.decimalToByte(data(curByte));
+        %bits = Utilities.decimalToByte(data(curByte));
+        bits = Utilities.unsignedDecimalToByteWithLookupTable(data(curByte));
         
     end
     
