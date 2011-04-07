@@ -87,6 +87,10 @@ classdef JPEGDecoder < handle
                 obj.verbose = verbose;
             end
             
+            % First the input data is decoded. This involves finding JPEG
+            % segment markers to identify each region (quantisation tables,
+            % huffman tables, entropy coded blocks etc) and then decoding
+            % them and extracting parameters. 
             if isfield(obj.inputStruct, 'binaryData')
                obj.decodeFromLogicalArray(); 
             elseif isfield(obj.inputStruct, 'numericData')
@@ -97,17 +101,60 @@ classdef JPEGDecoder < handle
             end
             
             % For each channel
-                        
+            for c=1:obj.numberOfChannels
+                
+                % Reconstruct DC diff values by sign extending.
+                blocksDCDiffValues{c} = arrayfun(@(cat, mag)(EntropyCoding.extendSignBitOfDecodedValue(mag, cat)), obj.differentiallyCodedDCCoefficient{c}(:,1), obj.differentiallyCodedDCCoefficient{c}(:,2));
+                
+                % These decoded values are differential so cumulative sum
+                % them to get original values
+                blocksDCValues{c} = cumsum(blocksDCDiffValues{c});
+                
+                % Reconstruct the AC coefficients by decoding the run
+                % lengths and then sign extending to recover original
+                % coefficient values.
+                
+                % This is performed by calling for each block cell
+                % of AC ZRLC coefficients decodeACZerosRunLengthValue().
+                % This returns the decoded run and value in a cell for each
+                % (Run, Value) combination (EOBs are translated into a
+                % zero). Cell2mat then combines a transpose of this (to get
+                % in column ordeR) into a vector and this is then extended
+                % with zeros to get the whole 63 coefficients
+                blocksACCoefficients{c} = cellfun(@(block)(...
+                        ...
+                        Utilities.padArray( ...
+                            cell2mat(...
+                                arrayfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
+                            .') ...
+                        , 0, 63) ...
+                    ), obj.zerosRunLengthCodedOrderedACCoefficients{c}, 'UniformOutput', false);
+
+                %blocksACCoefficients{c} = blkproc(obj.zerosRunLengthCodedOrderedACCoefficients{c}, [1 1], @(RSMags)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)));
+
+                % Dezigzag coeffs, add a proceeding value to hold DC
+                blocksWithACCoefficientsReordered{c} = blkproc(blocksACCoefficients{c}, [63 1], @(coeffs)(TransformCoding.coefficientOrdering([0 coeffs], 'dezigzag')));
+                
+                % Add DC values
+                %blocksWithACAndDCCoefficientsReordered{c} = [blocksDCValues{c}; blocksWithACCoefficientsReordered{c}];
+                
+                
+                % Reshape
+                %quantisedBlocks{c} = blkproc(blocksWithACAndDCCoefficientsReordered{c}, [64 1], @(coeffs)(reshape()));
+                
+                %{
+
+                % Dequantise
+                dequantisedBlocks{c} = blkproc() %block .* ;
             
-            % Dezigzag coeffs
-            
-            % Dequantise            
-            
-            % IDCT
-            
-            % Level shift
-            
-            
+                % IDCT
+                channelWithShift{c} = blkproc(@idct2)
+
+                % Level shift
+                channel{c} = uint8(channelWithShift{c} + 128);
+%}
+            end
+
 
             %{
             % decode bitstream
@@ -481,15 +528,16 @@ classdef JPEGDecoder < handle
                 for c=1:63
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
-                    
-                    % Get extra magnitude bits (RECEIVE)
-                    lengthOfExtraBits = bitand(valueForRS, 15);
-                    [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
-                    
-                    obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [valueForRS magnitudeExtraBitsValue];
                     % if RS = EOB stop block
                     if valueForRS == 0
+                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [0 0];
                         break;
+                    else
+                        % Get extra magnitude bits (RECEIVE)
+                        lengthOfExtraBits = bitand(valueForRS, 15);
+                        [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
+
+                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [valueForRS magnitudeExtraBitsValue];
                     end
                 end
             end
@@ -498,7 +546,7 @@ classdef JPEGDecoder < handle
             
         end
         
-        
+        %{
         function decodeFromLogicalArray(obj)
             % For each segment marker decode section
             test1 = true;
@@ -523,7 +571,8 @@ classdef JPEGDecoder < handle
                 test1 = (currentBit < numberOfBits);
             end
         end
-        
+        %}
+        %{
         function levelShiftInputImage(obj)
             % -----------
             % Level Shift
@@ -537,5 +586,6 @@ classdef JPEGDecoder < handle
             obj.imageStruct.cb  = uint8(double(obj.imageStruct.cbLevelShifted) + 128);
             obj.imageStruct.cr  = uint8(double(obj.imageStruct.crLevelShifted) + 128);
         end
+        %}
    end
 end 

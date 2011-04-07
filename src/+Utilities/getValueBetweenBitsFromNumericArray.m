@@ -11,9 +11,10 @@ else
     curByte = startByteLocation;
     curBit = startBitLocation;
 
-    bits = Utilities.decimalToByte(data(curByte));
+    %bits = Utilities.decimalToByte(data(curByte));
+    bits = uint16(Utilities.unsignedDecimalToByteWithLookupTable(data(curByte)));
 
-    value = uint16(bits(curBit));
+    value = bits(curBit);
 
     for i=1:lengthInBits-1
         % FIXME: Next bit should be a seperate routine to handle pad bytes and
@@ -28,17 +29,18 @@ else
                     %data(curByte + 1) = [];
                     curByte = curByte + 1;
                 else
-                    throw(MException('JPEGDecoder:getValueBetweenBitsFromNumericArray', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
+                    throw(MException('Utilities:getValueBetweenBitsFromNumericArray', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
                 end
             end
 
             curBit = 1;
             curByte = curByte + 1;
             
-            bits = Utilities.decimalToByte(data(curByte));
+            %bits = Utilities.decimalToByte(data(curByte));
+            bits = uint16(Utilities.unsignedDecimalToByteWithLookupTable(data(curByte)));
         end
 
-        value = bitshift(value,1) + uint16(bits(curBit));
+        value = bitshift(value,1) + bits(curBit);
     end
 
     endByte = curByte;
@@ -52,7 +54,7 @@ else
             if data(endByte + 1) == 0
                 endByte = endByte + 1;
             else
-                throw(MException('JPEGDecoder:getValueBetweenBitsFromNumericArray', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
+                throw(MException('Utilites:getValueBetweenBitsFromNumericArray', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
             end
         end
     end

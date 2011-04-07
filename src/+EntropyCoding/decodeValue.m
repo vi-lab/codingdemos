@@ -10,11 +10,13 @@ curBit = startBitLocation;
 % this could be called number of times per byte if code is less than 1 byte
 % long. maybe could compute before call this method so result is cached
 %bits = Utilities.decimalToByte(data(curByte));
-bits = Utilities.unsignedDecimalToByteWithLookupTable(data(curByte));
+bits = uint16(Utilities.unsignedDecimalToByteWithLookupTable(data(curByte)));
 
-CODE = uint16(bits(curBit));%Utilities.getBitFromNumericData(data, curByte, curBit);
+CODE = bits(curBit);%Utilities.getBitFromNumericData(data, curByte, curBit);
 
-while typecast(CODE, 'int16') > MAXCODE(I)
+% if CODE was signed when it is greater than 32767 it becomes negative
+while CODE > MAXCODE(I) && CODE < 32768
+%while typecast(CODE, 'int16') > MAXCODE(I)
     I = I + 1;
     
     % FIXME: Next bit should be a seperate routine to handle pad bytes and
@@ -28,7 +30,7 @@ while typecast(CODE, 'int16') > MAXCODE(I)
                 %data(curByte + 1) = [];
                 curByte = curByte + 1;
             else
-                throw(MException('JPEGDecoder:decodeValue', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
+                throw(MException('EntropyCoding:decodeValue', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
             end
         end
         
@@ -36,11 +38,11 @@ while typecast(CODE, 'int16') > MAXCODE(I)
         curByte = curByte + 1;
         
         %bits = Utilities.decimalToByte(data(curByte));
-        bits = Utilities.unsignedDecimalToByteWithLookupTable(data(curByte));
+        bits = uint16(Utilities.unsignedDecimalToByteWithLookupTable(data(curByte)));
         
     end
     
-    CODE = bitshift(CODE,1) + uint16(bits(curBit));
+    CODE = bitshift(CODE,1) + bits(curBit);
 end
 
 J = VALPTR(I);
@@ -62,7 +64,7 @@ if nextBit > 8
         if data(nextByte + 1) == 0
             nextByte = nextByte + 1;
         else
-            throw(MException('JPEGDecoder:getValueBetweenBitsFromNumericArray', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
+            throw(MException('EntropyCoding:decodeValue', ['While decoding an entropy coded segment a marker was encoutered. Maybe the JPEG is corrupt?.'])); 
         end
     end
 end
