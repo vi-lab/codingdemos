@@ -1,5 +1,6 @@
 function [ yHi yVi cbHi cbVi crHi crVi ] = modeToHorizontalAndVerticalSamplingFactors( mode )
-%MODETOHORIZONTALANDVERTICALSAMPLINGFACTOR Summary of this function goes here
+%MODETOHORIZONTALANDVERTICALSAMPLINGFACTOR Convert a mode string to JPEG
+%sampling factors.
 %   Ref: CCITT Rec. T.81 (1992 E)	p. 24 A.1.1
 %
 %   The sampling factors are essentially encoded relative to the maximum

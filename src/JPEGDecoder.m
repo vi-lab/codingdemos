@@ -13,6 +13,16 @@ classdef JPEGDecoder < handle
         verbose = false;
         
         chromaSamplingMode
+        outputImageSize
+        numberOfChannels
+        
+        
+        componentIdentifier
+        horizontalSamplingFactor
+        verticalSamplingFactor
+        quantisationTableDestinationSelector
+        
+        componentSizeInBlocks
         
         % TODO : REFACTOR NAMING 
         
@@ -35,60 +45,17 @@ classdef JPEGDecoder < handle
         
         % Scan segments - channels of the image
         scanSegments
-        
+       
+        % DC Category and magnitude bits
+        differentiallyCodedDCCoefficient
         % RS values for ZRLC from entropy decode
         zerosRunLengthCodedOrderedACCoefficients
         
-        % Output image data
-        outputImageSize
-        numberOfChannels
         
+        % Output image data
         outputImageMatrix
         outputImageStruct
         
-        
-        
-%{
-        yComponentIdentifier
-        yHorizontalSamplingFactor
-        yVerticalSamplingFactor
-        yQuantisationTableDestinationSelector
-        cbComponentIdentifier
-        cbHorizontalSamplingFactor
-        cbVerticalSamplingFactor
-        cbQuantisationTableDestinationSelector
-        crComponentIdentifier
-        crHorizontalSamplingFactor
-        crVerticalSamplingFactor
-        crQuantisationTableDestinationSelector
-        %}
-        %{
-        imageMatrix
-        imageStruct
-        
-        qualityFactor
-        chromaSamplingMode
-        
-        luminanceScaledQuantisationTable
-        chromaScaledQuantisationTable
-
-        yCoefficients
-        yQuantisedCoefficients
-        yOrderedCoefficients
-        yZerosRunLengthCodedOrderedCoefficients
-        
-        cbCoefficients
-        cbQuantisedCoefficients
-        cbOrderedCoefficients
-        cbZerosRunLengthCodedOrderedCoefficients
-        
-        crCoefficients
-        crQuantisedCoefficients
-        crOrderedCoefficients
-        crZerosRunLengthCodedOrderedCoefficients
-        
-        output
-        %}
     end
 
     methods
@@ -130,27 +97,13 @@ classdef JPEGDecoder < handle
             end
             
             % For each channel
-            
-            % AC de-Run-length code
-            
-            
-            
-            % DC de-diff
-            
-            
-            % Dequantise, tables are zigzaged
-            
-            
-            % add DC
-            
+                        
             
             % Dezigzag coeffs
             
-            
+            % Dequantise            
             
             % IDCT
-            
-            
             
             % Level shift
             
@@ -269,48 +222,65 @@ classdef JPEGDecoder < handle
         end
         
         function endByte = decodeFrameHeaderFromNumericData(obj, startByte)
+            % ------------------------
+            % Decode JPEG Frame header
+            % ------------------------
+            %
+            
             % Lf    (2 bytes)
-            segmentLength       = obj.getNumericShort(startByte);
+            segmentLength           = obj.getNumericShort(startByte);
             % P     (1 byte)
-            dataByteSize        = obj.inputStruct.numericData(startByte + 2);
+            dataByteSize            = obj.inputStruct.numericData(startByte + 2);
             % Y     (2 byte)
-            imageHeight         = obj.getNumericShort(startByte + 3);
+            imageHeight             = obj.getNumericShort(startByte + 3);
             % X     (2 byte)
-            imageWidth          = obj.getNumericShort(startByte + 5);
-            obj.outputImageSize = [imageWidth imageHeight];
+            imageWidth              = obj.getNumericShort(startByte + 5);
+            obj.outputImageSize     = [imageWidth imageHeight];
             % Nf    (1 byte)
             obj.numberOfChannels    = obj.inputStruct.numericData(startByte + 7);
+            
+            currentByte = startByte + 8;
+            for i=1:obj.numberOfChannels
+                % Ci1   (1 byte)
+                obj.componentIdentifier(i) = obj.inputStruct.numericData(currentByte);
+                % Hi1   (1 nibble)
+                % Vi1   (1 nibble)
+                [obj.horizontalSamplingFactor(obj.componentIdentifier(i)) obj.verticalSamplingFactor(obj.componentIdentifier(i))] = obj.getNumericNibblesFromByte(currentByte + 1);
+                % Tqi1  (1 byte)
+                obj.quantisationTableDestinationSelector(obj.componentIdentifier(i)) = obj.inputStruct.numericData(currentByte + 2);
+                currentByte = currentByte + 3;
+            end
+            
+            % Compute subsampling mode for this image
+            if obj.numberOfChannels == 3
+                obj.chromaSamplingMode = Subsampling.horizontalAndVerticalSamplingFactorsToMode(...
+                                                obj.horizontalSamplingFactor(obj.componentIdentifier(1)), ...
+                                                obj.verticalSamplingFactor(obj.componentIdentifier(1)), ...
+                                                obj.horizontalSamplingFactor(obj.componentIdentifier(2)), ...
+                                                obj.verticalSamplingFactor(obj.componentIdentifier(2)), ...
+                                                obj.horizontalSamplingFactor(obj.componentIdentifier(3)), ...
+                                                obj.verticalSamplingFactor(obj.componentIdentifier(3)));
+                % Compute channel block sizes
+                HiMax = max(obj.horizontalSamplingFactor(:));
+                ViMax = max(obj.verticalSamplingFactor(:));
+                obj.componentSizeInBlocks = arrayfun(@(Hi, Vi)...
+                                                        ( ...
+                                                            [ceil(obj.outputImageSize(1)/8*(Hi/HiMax)) ceil(obj.outputImageSize(2)/8*(Vi/ViMax))]...
+                                                        ), ...
+                                                    obj.horizontalSamplingFactor, obj.verticalSamplingFactor, 'UniformOutput', false);
+            else
+                obj.chromaSamplingMode = [];
+                obj.componentSizeInBlocks = {[ceil(obj.outputImageSize(1)/8) ceil(obj.outputImageSize(2)/8)]};
+            end
+            
 
-            % Ci1   (1 byte)
-            obj.yComponentIdentifier                    = obj.inputStruct.numericData(startByte + 8);
-            % Hi1   (1 nibble)
-            % Vi1   (1 nibble)
-            [obj.yHorizontalSamplingFactor obj.yVerticalSamplingFactor] = obj.getNumericNibblesFromByte(startByte + 9);
-            % Tqi1  (1 byte)
-            obj.yQuantisationTableDestinationSelector   = obj.inputStruct.numericData(startByte + 10);
-            
-            % Ci2   (1 byte)
-            obj.cbComponentIdentifier                   = obj.inputStruct.numericData(startByte + 11);
-            % Hi2   (1 nibble)
-            % Vi2   (1 nibble)
-            [obj.cbHorizontalSamplingFactor obj.cbVerticalSamplingFactor] = obj.getNumericNibblesFromByte(startByte + 12);
-            % Tqi2  (1 byte)
-            obj.cbQuantisationTableDestinationSelector  = obj.inputStruct.numericData(startByte + 13);
-            
-            % Ci3   (1 byte)
-            obj.crComponentIdentifier                   = obj.inputStruct.numericData(startByte + 14);
-            % Hi3   (1 nibble)
-            % Vi3   (1 nibble)
-            [obj.crHorizontalSamplingFactor obj.crVerticalSamplingFactor] = obj.getNumericNibblesFromByte(startByte + 15);
-            % Tqi3  (1 byte)
-            obj.crQuantisationTableDestinationSelector  = obj.inputStruct.numericData(startByte + 16);
-
-            
+            % Verbose text
             if obj.verbose
                 disp (['- Frame Header: (' num2str(segmentLength) ' bytes), precision: ' num2str(dataByteSize) ', image (width, height): (' num2str(imageWidth) ', ' num2str(imageHeight) '), channels: ' num2str(obj.numberOfChannels)]);
-                disp (['-- Component ' num2str(obj.yComponentIdentifier) ' (Hi,Vi): (' num2str(obj.yHorizontalSamplingFactor) ', ' num2str(obj.yVerticalSamplingFactor) '), Quantisation Table: ' num2str(obj.yQuantisationTableDestinationSelector)]);
-                disp (['-- Component ' num2str(obj.cbComponentIdentifier) ' (Hi,Vi): (' num2str(obj.cbHorizontalSamplingFactor) ', ' num2str(obj.cbVerticalSamplingFactor) '), Quantisation Table: ' num2str(obj.cbQuantisationTableDestinationSelector)]);
-                disp (['-- Component ' num2str(obj.crComponentIdentifier) ' (Hi,Vi): (' num2str(obj.crHorizontalSamplingFactor) ', ' num2str(obj.crVerticalSamplingFactor) '), Quantisation Table: ' num2str(obj.crQuantisationTableDestinationSelector)]);
+                for i=1:obj.numberOfChannels
+                    disp (['-- Component ' num2str(obj.componentIdentifier(i)) ' (Hi,Vi): (' num2str(obj.horizontalSamplingFactor(obj.componentIdentifier(i))) ', ' num2str(obj.verticalSamplingFactor(obj.componentIdentifier(i))) '), Quantisation Table: ' num2str(obj.quantisationTableDestinationSelector(obj.componentIdentifier(i)))]);
+                end
+                disp(['-- Sampling Mode: ' obj.chromaSamplingMode]);
             end
             endByte = startByte + segmentLength - 1;
         end
@@ -474,47 +444,58 @@ classdef JPEGDecoder < handle
             % Ref: CCITT Rec. T.81 (1992 E)	p.107
             % DC
             BITS = obj.huffmanDCCodeCountPerCodeLength{huffmanDCTableID + 1};
-            HUFFVAL = obj.huffmanDCSymbolValuesPerCode{huffmanDCTableID + 1};
+            HUFFVALDC = cell2mat(obj.huffmanDCSymbolValuesPerCode{huffmanDCTableID + 1});
             HUFFCODE = obj.huffcodeForDCCellArray{huffmanDCTableID + 1};
-            [minCodeForDC maxCodeForDC valueTablePointer] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
+            [minCodeForDC maxCodeForDC valueTablePointerForDC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
             
+            BITS = obj.huffmanACCodeCountPerCodeLength{huffmanDCTableID + 1};
+            HUFFVALAC = cell2mat(obj.huffmanACSymbolValuesPerCode{huffmanDCTableID + 1});
+            HUFFCODE = obj.huffcodeForACCellArray{huffmanDCTableID + 1};
+            [minCodeForAC maxCodeForAC valueTablePointerForAC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
+            
+            clear BITS HUFFCODE
             % convert to logical and start matching to Huffman Codes
             % NON-INTERLEAVED
 
+            
+            % HERE WE WILL END UP WITH BLOCKS but still RLZ and DC DIffed
             currentByte = startByte;
-            
-            [ VALUE endByte endBit ] = EntropyCoding.decodeValue( obj.inputStruct.numericData, startByte, 1, minCodeForDC, maxCodeForDC, valueTablePointer, HUFFVAL );
-            [ VALUE endByte endBit ] = EntropyCoding.decodeValue( obj.inputStruct.numericData, endByte, endBit + 1, minCodeForDC, maxCodeForDC, valueTablePointer, HUFFVAL );            
-            %{
+            currentBit = 1;
+
             % compute total pixels for channel with its Hi,Vi and image w,h
-            totalBlocks = a; %****************************
+            totalBlocks = obj.componentSizeInBlocks{channelID};
             
-            for i=1:totalBlocks
+            for i=1:totalBlocks(1)*totalBlocks(2)
                 % For given block 
+
+                % DC Category Huffman decode
+                [categoryOfDCDiff currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForDC, maxCodeForDC, valueTablePointerForDC, HUFFVALDC );
+
+                lengthOfExtraBits = categoryOfDCDiff;
+                
+                [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
+                
+                obj.differentiallyCodedDCCoefficient{channelID}(i,:) = [categoryOfDCDiff magnitudeExtraBitsValue];
                 
                 % Decode each coeff
-                for c=1:64
-                    code = [];
+                for c=1:63
+                    % decode RS value
+                    [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
                     
-                    if c == 1
-                        % DC
-                        % DIFF
-                    else
-                        % RS
-                        % if RS = EOB
-                        if 
-                            break;
-                        end
+                    % Get extra magnitude bits (RECEIVE)
+                    lengthOfExtraBits = bitand(valueForRS, 15);
+                    [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
                     
+                    obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [valueForRS magnitudeExtraBitsValue];
+                    % if RS = EOB stop block
+                    if valueForRS == 0
+                        break;
                     end
                 end
             end
+
+            endByte = currentByte;
             
-            
-            % RS value
-            %obj.zerosRunLengthCodedOrderedACCoefficients{channelID}
-            endByte
-            %}
         end
         
         
