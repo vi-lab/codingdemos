@@ -344,7 +344,8 @@ classdef JPEGEncoder < handle
             % simpler on particular integer types. The AC values should be
             % level shift independant
             % Ref:
-            % http://compgroups.net/comp.compression/Level-Shift-in-JPEG-optional-or-mandatory
+            %   CCITT Rec. T.81 (1992 E) p.26
+            %   http://compgroups.net/comp.compression/Level-Shift-in-JPEG-optional-or-mandatory
             
             %%%%% After a non-differential frame decoding process computes
             %%%%% the IDCT and produces a block of reconstructed image samples, an inverse level shift shall restore the samples to the unsigned representation by adding 2P ? 1 and clamping the results to the range 0 to 2P ? 1.

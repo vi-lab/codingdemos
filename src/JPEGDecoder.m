@@ -80,7 +80,8 @@ classdef JPEGDecoder < handle
                 throw(MException('JPEGDecoder:input', 'The input image data must be either a string file name to read, or a bistream in the form of a logical matrix of bits .')); 
             end
         end
-        
+       
+        % TODO: Should take varargs so that you can pass in what to do
         function outputImage = decode(obj, verbose)
             outputImage = [];            
             if exist('verbose', 'var')
@@ -98,13 +99,20 @@ classdef JPEGDecoder < handle
             else
                 %%%%%%%% STRUCT FROM ENCODER, only do whats needed, (prob
                 %%%%%%%% no entropy decode)
+                
             end
             
             % For each channel
             for c=1:obj.numberOfChannels
                 
+                channelID = obj.componentIdentifier(c);
+                
+                if obj.verbose
+                    disp(['Reconstructing channel ' num2str(channelID) '.']);
+                end
+                
                 % Reconstruct DC diff values by sign extending.
-                blocksDCDiffValues{c} = arrayfun(@(cat, mag)(EntropyCoding.extendSignBitOfDecodedValue(mag, cat)), obj.differentiallyCodedDCCoefficient{c}(:,1), obj.differentiallyCodedDCCoefficient{c}(:,2));
+                blocksDCDiffValues{c} = arrayfun(@(cat, mag)(EntropyCoding.extendSignBitOfDecodedValue(mag, cat)), obj.differentiallyCodedDCCoefficient{c}(:,1).', obj.differentiallyCodedDCCoefficient{c}(:,2).');
                 
                 % These decoded values are differential so cumulative sum
                 % them to get original values
@@ -121,51 +129,52 @@ classdef JPEGDecoder < handle
                 % zero). Cell2mat then combines a transpose of this (to get
                 % in column ordeR) into a vector and this is then extended
                 % with zeros to get the whole 63 coefficients
+                %blocksACCoefficients{c} = cellfun(@(block)(...
+                %           arrayfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ... 
+                %    ), obj.zerosRunLengthCodedOrderedACCoefficients{c}, 'UniformOutput', false);
+                
                 blocksACCoefficients{c} = cellfun(@(block)(...
-                        ...
                         Utilities.padArray( ...
-                            cell2mat(...
+                            cell2mat(... %sprintf([num2str(bitand(RS, 15)) ' ' num2str(bitshift(RS, -4))])
                                 arrayfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
                             .') ...
                         , 0, 63) ...
                     ), obj.zerosRunLengthCodedOrderedACCoefficients{c}, 'UniformOutput', false);
 
-                %blocksACCoefficients{c} = blkproc(obj.zerosRunLengthCodedOrderedACCoefficients{c}, [1 1], @(RSMags)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)));
-
-                % Dezigzag coeffs, add a proceeding value to hold DC
-                blocksWithACCoefficientsReordered{c} = blkproc(blocksACCoefficients{c}, [63 1], @(coeffs)(TransformCoding.coefficientOrdering([0 coeffs], 'dezigzag')));
-                
                 % Add DC values
-                %blocksWithACAndDCCoefficientsReordered{c} = [blocksDCValues{c}; blocksWithACCoefficientsReordered{c}];
+                blocksWithACAndDCCoefficientsReordered{c} = arrayfun(@(dc, ac)([dc ac{1}]), ...
+                                                                    blocksDCValues{c}, blocksACCoefficients{c}, 'UniformOutput', false);
                 
+                % Dezigzag coeffs
+                blocksWithACCoefficientsReordered{c} = cellfun( @(coeffs)(TransformCoding.coefficientOrdering(coeffs, 'dezigzag')), ...
+                                                                blocksWithACAndDCCoefficientsReordered{c},'UniformOutput',false);
                 
                 % Reshape
-                %quantisedBlocks{c} = blkproc(blocksWithACAndDCCoefficientsReordered{c}, [64 1], @(coeffs)(reshape()));
+                d = floor(sqrt(length(blocksWithACCoefficientsReordered{c})));
+                quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, d, d).');
                 
-                %{
-
                 % Dequantise
-                dequantisedBlocks{c} = blkproc() %block .* ;
+                dequantisedChannel{c} = blkproc(quantisedChannel{c}, [8 8], ...
+                                                @(block)(block.*obj.quantisationTables{obj.quantisationTableDestinationSelector(channelID) + 1}));
             
                 % IDCT
-                channelWithShift{c} = blkproc(@idct2)
+                reconstructedChannelWithLevelShift{c} = blkproc(dequantisedChannel{c}, [8 8], @idct2);
 
-                % Level shift
-                channel{c} = uint8(channelWithShift{c} + 128);
-%}
+                % -----------
+                % Level Shift
+                % -----------
+                % Ref: CCITT Rec. T.81 (1992 E) p.26
+                % http://compgroups.net/comp.compression/Level-Shift-in-JPEG-optional-or-mandatory
+                channel{c} = uint8(reconstructedChannelWithLevelShift{c} + 128);
+
             end
 
+            obj.outputImageStruct = cell2struct(channel, {'y', 'cb', 'cr'}, 2);
+            
+            if obj.verbose
+                figure(1),Subsampling.subsampledImageShow(obj.outputImageStruct);
+            end
 
-            %{
-            % decode bitstream
-            
-            obj.imageStruct = ;
-            
-            % ETC ETC ETC
-            obj.output = struct('image', obj.imageStruct, 'PSNR', 123); 
-            obj.imageMatrix = Subsampling.subsampledToYCbCrImage(obj.imageStruct);
-            outputImage = obj.imageMatrix;
-            %}
         end
         
         function decodeFromNumericArray(obj)
@@ -374,7 +383,7 @@ classdef JPEGDecoder < handle
         function endByte = decodeHuffmanTablesFromNumericData(obj, startByte)
  
 
-            segmentLength                   = obj.getNumericShort(startByte);
+            segmentLength = obj.getNumericShort(startByte);
             if obj.verbose
                 disp(['- Huffman Table Segment (' num2str(segmentLength) ' bytes)']);
             end
@@ -487,6 +496,7 @@ classdef JPEGDecoder < handle
             end
             
             huffmanDCTableID = obj.scanSegments{channelID}.huffmanDCTableID; 
+            huffmanACTableID = obj.scanSegments{channelID}.huffmanACTableID; 
             % DECODE procedure
             % Ref: CCITT Rec. T.81 (1992 E)	p.107
             % DC
@@ -495,9 +505,9 @@ classdef JPEGDecoder < handle
             HUFFCODE = obj.huffcodeForDCCellArray{huffmanDCTableID + 1};
             [minCodeForDC maxCodeForDC valueTablePointerForDC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
             
-            BITS = obj.huffmanACCodeCountPerCodeLength{huffmanDCTableID + 1};
-            HUFFVALAC = cell2mat(obj.huffmanACSymbolValuesPerCode{huffmanDCTableID + 1});
-            HUFFCODE = obj.huffcodeForACCellArray{huffmanDCTableID + 1};
+            BITS = obj.huffmanACCodeCountPerCodeLength{huffmanACTableID + 1};
+            HUFFVALAC = cell2mat(obj.huffmanACSymbolValuesPerCode{huffmanACTableID + 1});
+            HUFFCODE = obj.huffcodeForACCellArray{huffmanACTableID + 1};
             [minCodeForAC maxCodeForAC valueTablePointerForAC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
             
             clear BITS HUFFCODE
@@ -524,10 +534,19 @@ classdef JPEGDecoder < handle
                 
                 obj.differentiallyCodedDCCoefficient{channelID}(i,:) = [categoryOfDCDiff magnitudeExtraBitsValue];
                 
+                runLength = 0;
+                c = 0;
                 % Decode each coeff
-                for c=1:63
+                while runLength < 63
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
+                    
+                    % To get current run lengths do 
+                    % arrayfun(@(d)(bitshift(d,-4)), obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(:,1))
+                    %runLength
+                    
+                    zerosLength = bitshift(valueForRS, -4);
+                    c = c + 1;
                     % if RS = EOB stop block
                     if valueForRS == 0
                         obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [0 0];
@@ -538,6 +557,7 @@ classdef JPEGDecoder < handle
                         [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
                         obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [valueForRS magnitudeExtraBitsValue];
+                        runLength = runLength + zerosLength + 1;
                     end
                 end
             end
@@ -572,20 +592,6 @@ classdef JPEGDecoder < handle
             end
         end
         %}
-        %{
-        function levelShiftInputImage(obj)
-            % -----------
-            % Level Shift
-            % -----------
-            % Ref:
-            % http://compgroups.net/comp.compression/Level-Shift-in-JPEG-optional-or-mandatory
-            
-            %%%%% After a non-differential frame decoding process computes
-            %%%%% the IDCT and produces a block of reconstructed image samples, an inverse level shift shall restore the samples to the unsigned representation by adding 2P ? 1 and clamping the results to the range 0 to 2P ? 1.
-            obj.imageStruct.y   = uint8(double(obj.imageStruct.yLevelShifted) + 128);
-            obj.imageStruct.cb  = uint8(double(obj.imageStruct.cbLevelShifted) + 128);
-            obj.imageStruct.cr  = uint8(double(obj.imageStruct.crLevelShifted) + 128);
-        end
-        %}
+
    end
 end 

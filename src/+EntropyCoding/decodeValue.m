@@ -18,7 +18,7 @@ CODE = bits(curBit);%Utilities.getBitFromNumericData(data, curByte, curBit);
 while CODE > MAXCODE(I) && CODE < 32768
 %while typecast(CODE, 'int16') > MAXCODE(I)
     I = I + 1;
-    
+
     % FIXME: Next bit should be a seperate routine to handle pad bytes and
     % DNL markers
     % Ref: CCITT Rec. T.81 (1992 E)	p.111, F.18
@@ -44,6 +44,11 @@ while CODE > MAXCODE(I) && CODE < 32768
     
     CODE = bitshift(CODE,1) + bits(curBit);
 end
+
+if CODE > 32767
+   disp('16 bit code'); 
+end
+
 
 J = VALPTR(I);
 J = J + CODE - MINCODE(I);
