@@ -23,6 +23,8 @@ if size(image, 3) == 3
             chromasize = [osize(1) floor(osize(2)/4)];
         case '4:1:0' % half rows, quarter columns
             chromasize = [floor(osize(1)/2) floor(osize(2)/4)];
+        case '4:0:0' % half rows, quarter columns
+            chromasize = [floor(osize(1)/4) floor(osize(2)/4)];
     end
     
     c2 = imresize(image(:,:,2), chromasize, 'bilinear');
