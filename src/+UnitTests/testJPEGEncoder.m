@@ -15,7 +15,7 @@ clear classes
     toc
     
     % decode
-    !jpeg_c/jpeg -d test
+    !../jpeg_c/jpeg -d test
     
     UnitTests.displayCJPEGDecode('test')
     

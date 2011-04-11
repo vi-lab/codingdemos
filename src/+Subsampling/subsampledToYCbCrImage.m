@@ -1,12 +1,11 @@
 function [ ycbcrimage ] = subsampledToYCbCrImage( simage, upsampleFilter )
-%SUBSAMPLEDTOYCBCRIMAGE Summary of this function goes here
-%   Detailed explanation goes here
+%SUBSAMPLEDTOYCBCRIMAGE Convert a subsampled image struct to a ycbcr image
+%   The input image must be a subsampled image struct. Optionally specify
+%   an interpolation mode
 
 if ~exist('upsampleFilter', 'var')
     upsampleFilter = 'bilinear';
 end
-
-%   http://dougkerr.net/pumpkin/articles/Subsampling.pdf
 
 if isfield(simage, {'y','cb','cr'})
     osize = size(simage.y);
@@ -15,7 +14,7 @@ if isfield(simage, {'y','cb','cr'})
     ycbcrimage(:,:,2) = imresize(simage.cb, [osize(1) osize(2)], upsampleFilter);
     ycbcrimage(:,:,3) = imresize(simage.cr, [osize(1) osize(2)], upsampleFilter);
 else 
-    throw(MException('Subsample:NoColourChannels', 'The input image must be a struct with y, cb and cr fields corresponding to the 3 channels.'));
+    throw(MException('Subsample:NoColourChannels', 'The input image must be a struct with y, cb and cr or r, g, b fields corresponding to the 3 channels.'));
 end
 
 end

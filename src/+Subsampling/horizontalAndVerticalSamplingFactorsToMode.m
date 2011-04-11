@@ -18,6 +18,7 @@ function [ mode ] = horizontalAndVerticalSamplingFactorsToMode( yHi, yVi, cbHi, 
 % of 4 for J, the factor for a is the J factor divided by the max
 % horizontal sampling factor and the b factor is equal to a when the 
 % vertical sampling is 1, and 0 otherwise
+
 m1 = 4; m2 = 4; m3 = 4;
 
 mHi = max([yHi cbHi crHi]);

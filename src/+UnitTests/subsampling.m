@@ -5,10 +5,10 @@ function [ success ] = subsampling( )
 I = rgb2ycbcr(imread('lena_color_256.bmp'));
 try 
     %s422 = Subsampling.imageTo422(I);
-    s422 = Subsampling.ycbcrImageToSubsampled(I, '4:2:2' );
+    s422 = Subsampling.ycbcrImageToSubsampled(I, 'Mode', '4:2:2' );
 
     %s420 = Subsampling.imageTo420(I);
-    s420 = Subsampling.ycbcrImageToSubsampled(I, '4:2:0' );
+    s420 = Subsampling.ycbcrImageToSubsampled(I, 'Mode', '4:2:0' );
     
     %r422 = Subsampling.s422ToImage(s422);
     r422 = Subsampling.subsampledToYCbCrImage(s422);

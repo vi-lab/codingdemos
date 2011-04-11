@@ -177,7 +177,7 @@ classdef JPEGEncoder < handle
                         % already ok
                     else
                         % convert
-                        obj.imageStruct = Subsampling.ycbcrImageToSubsampled(Subsampling.subsampledToYCbCrImage(obj.imageStruct), obj.chromaSamplingMode );
+                        obj.imageStruct = Subsampling.ycbcrImageToSubsampled(Subsampling.subsampledToYCbCrImage(obj.imageStruct), 'Mode', obj.chromaSamplingMode );
                     end
                 else
                     % struct but no mode
@@ -185,7 +185,7 @@ classdef JPEGEncoder < handle
                 end
             else
                 % no struct so create from matrix
-                obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix, obj.chromaSamplingMode );
+                obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix, 'Mode', obj.chromaSamplingMode );
             end
 
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);

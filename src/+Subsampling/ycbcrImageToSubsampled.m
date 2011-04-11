@@ -1,10 +1,25 @@
-function [ simage ] = ycbcrImageToSubsampled( image, mode )
-%IMAGETOSUBSAMPLED Summary of this function goes here
-%   Detailed explanation goes here
-%   http://dougkerr.net/pumpkin/articles/Subsampling.pdf
+function [ simage ] = ycbcrImageToSubsampled( image, varargin )
+%YCBCRIMAGETOSUBSAMPLED Convert a ycbcr image into a subsampled struct with
+%the given mode.
+%   The available modes can be obtained from Subsampling.supportedModes(). 
+%   For a description on what modes mean see
+%       `help Subsampling.supportedModes`
+%   and the following reference.
+%   Parameters:
+%       'Mode': 
+%   Ref: 
+%       http://dougkerr.net/pumpkin/articles/Subsampling.pdf
 
-if ~exist('mode', 'var')
-    mode = '4:2:2';
+interpolation = 'bilinear';
+mode = '4:2:2';
+
+for k=1:2:size(varargin,2) 
+    switch lower(varargin{k})
+        case 'mode'
+            mode = varargin{k + 1};
+        case 'interpolation'
+            interpolation = varargin{k + 1};
+    end
 end
 
 if size(image, 3) == 3
@@ -27,10 +42,10 @@ if size(image, 3) == 3
             chromasize = [floor(osize(1)/4) floor(osize(2)/4)];
     end
     
-    c2 = imresize(image(:,:,2), chromasize, 'bilinear');
-    c3 = imresize(image(:,:,3), chromasize, 'bilinear');
+    c2 = imresize(image(:,:,2), chromasize, interpolation);
+    c3 = imresize(image(:,:,3), chromasize, interpolation);
     
-    simage = struct('y', c1,'cb', c2,'cr', c3,'mode', mode);
+    simage = struct('y', c1,'cb', c2,'cr', c3,'mode', mode, 'interpolation', interpolation);
     
 else 
     throw(MException('Subsample:NoColourChannels', 'This image must have 3 channels.'));
