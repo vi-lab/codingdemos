@@ -8,12 +8,10 @@ classdef SubsamplingWindow < GUIs.base
        hChannelSelectText
        hInterpolationSelect
        hInterpolationSelectText
-       hInputImageSelect
-       hInputImageSelectText
+
        hSubsampleModeSelect
        hShowChannelUpsampledCheckBox
        
-       %hInputImageAxes
        hInputImage
        hSubsampledImageAxes
        hSubsampledImage
@@ -30,7 +28,6 @@ classdef SubsamplingWindow < GUIs.base
        interpolationMode
        showChannelInColour
        upsampleImage
-       channelToShow
    end
 
    methods
@@ -51,34 +48,12 @@ classdef SubsamplingWindow < GUIs.base
             obj.interpolationMode = 'nearest';
             obj.upsampleImage = {true true true};
             obj.showChannelInColour = true;
-                       
 
-           % Input image select Combo box
-           obj.hInputImageSelectText = uicontrol('Parent', obj.hExternalPanel, ...
-                                        'Style', 'text', ...
-                                        'String', 'Input Image:', ...
-                                        'Units', 'Normalized', ...
-                                        'HorizontalAlignment', 'left', ...
-                                        'Position', [0.06 0.91 0.3 0.07], ...
-                                        'Fontsize', 11, ...
-                                        'FontName', 'Courier New',...
-                                        'BackgroundColor', 'white');
+            % Show input image selection
+            obj.createInputImageSelectComboBoxAndText([0.06 0.91 0.3 0.07], [0.06 0.87 0.2 0.08]);
 
-           obj.hInputImageSelect = uicontrol('Style', 'popupmenu', ...
-                                        'Parent', obj.hExternalPanel, ...
-                                        'FontSize', 11, ...
-                                        'FontName', 'Courier New',...
-                                        'Units', 'Normalized', ...
-                                        'Position',[0.06 0.87 0.2 0.08],...
-                                        'String', 'a|b|c',...
-                                        'Callback', @(source, event)(obj.changeInputOnDisplay(source)));
-           p = getpixelposition(obj.hInputImageSelect);
-           setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
-           
-           obj.populateExampleImagesFromExamplesDirectory();
-                                    
-           % Popup: Channel Selection
-           obj.hChannelSelectText = uicontrol('Parent', obj.hExternalPanel, ...
+            % Popup: Channel Selection
+            obj.hChannelSelectText = uicontrol('Parent', obj.hExternalPanel, ...
                                         'Style', 'text', ...
                                         'String', 'Channel type to show:', ...
                                         'Units', 'Normalized', ...
@@ -87,8 +62,8 @@ classdef SubsamplingWindow < GUIs.base
                                         'Fontsize', 11, ...
                                         'FontName', 'Courier New',...
                                         'BackgroundColor', 'white');
-                    
-           obj.hChannelSelect = uicontrol('Style', 'popupmenu', ...
+
+            obj.hChannelSelect = uicontrol('Style', 'popupmenu', ...
                                         'Parent', obj.hExternalPanel, ...
                                         'FontSize', 11, ...
                                         'FontName', 'Courier New',...
@@ -134,22 +109,8 @@ classdef SubsamplingWindow < GUIs.base
                                         'Visible', 'off', ...
                                         'Position', [.01 .01 .98 .25]);
            
-            %hCMZ = uicontextmenu;
-            %hZMenu = uimenu('Parent',hCMZ,'Label','Switch to pan','Callback','pan(gcbf,''on'')');
             for i=1:3
-                obj.hSubsampledImageAxes{i} = axes('Parent', obj.hExternalPanel, ...
-                                        'Box', 'on', ...
-                                        'Visible', 'on', ...
-                                        'XTick', [],...
-                                        'YTick', [],...
-                                        ... %'UIContextMenu',hCMZ, ...
-                                        'Units', 'Normalized', ...
-                                        'Position', [((0.33*(i-1))+.01) .35 .32 .5]);
-
-                % Draw initial image placeholder
-                axis([0 1 0 1]);
-                line([0 1], [1 0], 'LineWidth',1,'Color',[.8 .8 .8]);
-                line([0 1], [0 1], 'LineWidth',1,'Color',[.8 .8 .8]);
+                obj.hSubsampledImageAxes{i} = obj.createAxesForImage([((0.33*(i-1))+.01) .35 .32 .5], obj.hExternalPanel);
                 
                 % Subsampling mode images
                 arrayfun(@(c, text)(uicontrol('Parent', obj.hSelectedBlockPanel, ...
@@ -163,13 +124,7 @@ classdef SubsamplingWindow < GUIs.base
                                         'BackgroundColor', 'white')), [1:4], { 'cb' 'block' 'cr' 'samples'},'UniformOutput', false);
 
                 obj.hSubsamplingModeImageAxes{i} = arrayfun(@(c)(...
-                                    axes('Parent', obj.hSelectedBlockPanel, ...
-                                        'Box', 'on', ...
-                                        'Visible', 'on', ...
-                                        'XTick', [],...
-                                        'YTick', [],...
-                                        'Units', 'Normalized', ...
-                                        'Position', [((0.34*(i-1))+(.01+(floor(c/3)*.15))) (.05+(rem(c+1,2)*.5)) .14 .31]) ...
+                                    obj.createAxesForImage([((0.34*(i-1))+(.01+(floor(c/3)*.15))) (.05+(rem(c+1,2)*.5)) .14 .31], obj.hSelectedBlockPanel) ...
                                     ), [1:4],'UniformOutput', false);
             end
             
@@ -219,7 +174,7 @@ classdef SubsamplingWindow < GUIs.base
 
            end
            
-           %obj.changeInputOnDisplay(obj.hInputImageSelect);
+           %obj.changeInput(obj.hInputImageSelect);
            
            % Give keyboard focus to image select element
            uicontrol(obj.hInputImageSelect);
@@ -332,25 +287,13 @@ classdef SubsamplingWindow < GUIs.base
            obj.updateAxes();
        end
        
-       function changeInputOnDisplay(obj, source)
-           files = get(source, 'String');
-           fileName = fullfile('exampleImages', files{get(source, 'Value')});
-           imageRGB = imread(fileName);
-           
-            if isempty(imageRGB)
-                throw(MException('SubsamplingWindow:changeInputOnDisplay', 'The specified file could not be opened. It maybe corrupt or have been removed.'));
-            end
-
-            if isempty(obj.channelToShow)
-                % Set a default
-                obj.channelToShow = 'all';
-            end
-            
-            obj.inputMatrix = rgb2ycbcr(imageRGB);
+        function changeInput(obj, source)
+            % Call super class implementation which does the loading etc
+            obj.changeInput@GUIs.base(source);
             
             obj.doSubsamplingOnImageMatrix();
             obj.updateAxes();
-       end
+        end
        
        function changeChannelOnDisplay(obj, source)
             selected = get(source, 'Value');
@@ -448,11 +391,6 @@ classdef SubsamplingWindow < GUIs.base
            end
            
            obj.updateSubsampleViews();
-       end
-
-       function populateExampleImagesFromExamplesDirectory(obj)
-           examples = struct2cell([dir('exampleImages/*.bmp') dir('exampleImages/*.jpg') dir('exampleImages/*.png')]);
-           set(obj.hInputImageSelect, 'String', examples(1,:));
        end
    end
 end 

@@ -5,22 +5,62 @@ classdef TransformWindow < GUIs.base
        
        encoderInstance
        
+       hInputImage
+       hInputImageAxes
        
+       hQuantisationSlider
+       
+       hOutputImage
+       hOutputImageAxes
    end
    
-   methods
-       function obj = TransformWindow(encoder, decoder)
+	methods
+        function obj = TransformWindow(encoder, decoder)
            
-           obj = obj@GUIs.base('Transform Coding: DCT');
+            obj = obj@GUIs.base('Transform Coding: DCT');
            
-           if ~exist('encoder', 'var')
-               throw(MException('TransformWindow:TransformWindow', 'You must pass in the instance of the JPEG encoder.'));
-           end
+            if ~exist('encoder', 'var')
+                throw(MException('TransformWindow:TransformWindow', 'You must pass in the instance of the JPEG encoder.'));
+            end
            
-           obj.encoderInstance = encoder;
-       end
-   end
+            obj.encoderInstance = encoder;
+           
+            % Input and output image axes
+            obj.hInputImageAxes = obj.createAxesForImage([.01 .50 .45 .45]);
 
+            obj.hOutputImageAxes = obj.createAxesForImage([.01 .01 .45 .45]);
+           
+            obj.hQuantisationSlider = uicontrol('Style', 'slider', ...
+                                                'Parent', obj.hExternalPanel, ...
+                                                'Min', 0, 'Max', 100, ...
+                                                'Units', 'Normalized', ...
+                                                'Position', [.01 .46 0.45 0.03], ...
+                                                'Value', obj.encoderInstance.qualityFactor,...
+                                                'Callback', @(source, event)(obj.quantisationFactorChange(source)));
+            
+            obj.hInputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);           
+            set(obj.hInputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
+
+            obj.hOutputImage = Subsampling.subsampledImageShow(obj.encoderInstance.reconstruction, 'Parent', obj.hOutputImageAxes);           
+            set(obj.hOutputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
+        end
+
+        function quantisationFactorChange(obj, source)
+            % add monitor
+            addlistener(obj.encoderInstance, 'reconstruction', 'PostSet', @obj.encoderFinishedQuantisationChange);
+            
+            obj.encoderInstance.qualityFactor = ceil(get(source, 'Value'));
+            obj.encoderInstance.encode('DoEntropyCode', false, 'DoReconstruction', true);
+
+            % disable
+            set(source, 'Enable', 'off');
+        end
+        
+        function encoderFinishedQuantisationChange(obj)
+            disp('Finished quantisation change.');
+            set(obj.hQuantisationSlider, 'Enable', 'on');
+        end
+    end
 end
 %{
    properties
@@ -51,55 +91,7 @@ end
    end
 
    methods
-       function obj = TransformWindow(encoder, decoder)
            
-           if ~exist('encoder', 'var')
-               throw(MException('TransformWindow:TransformWindow', 'You must pass in the instance of the JPEG encoder.'));
-           end
-           
-           obj.encoderInstance = encoder;
-           
-           %obj.hMainWindow = openfig('+GUIs/demoDCT.fig');
-           scrsz = get(0, 'ScreenSize');
-           obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.6 scrsz(3)*0.6], 'Color', [1 1 1]);
-            
-           % external panel
-           obj.hExternalPanel = uipanel('Title', 'Transform Coding: DCT', ...
-                                        'FontSize', 15,  ...
-                                        'FontName', 'Courier', ...
-                                        'BackgroundColor', 'white', ...
-                                        'Position', [.01 .01 .98 .98]);
-                                    
-           obj.hButtonBackUp = uicontrol('Style', 'pushbutton', ...
-                                        'Parent', obj.hMainWindow, ...
-                                        'FontSize', 8,  ...
-                                        'String', 'Next Stage', ...
-                                        'Position', [0.85 0.98 0.1 0.02], ...
-                                        'Units', 'Normalized');
-                                        
-           obj.hButtonNext = uicontrol('Style', 'pushbutton', ...
-                                        'Parent', obj.hMainWindow, ...
-                                        'FontSize', 8,  ...    
-                                        'String', 'Back Up', ...
-                                        'Position', [0.75 0.98 0.1 0.02], ...
-                                        'Units', 'Normalized');
-           
-           % Input and output image axes
-           obj.hInputImageAxes = axes('Parent', obj.hExternalPanel, ...
-                                        'Box', 'on', ...
-                                        'Visible', 'off', ...
-                                        'Position', [.05 .51 .45 .45], ...
-                                        'Units', 'Normalized');
-
-           obj.hInputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, obj.hInputImageAxes);           
-           set(obj.hInputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
-
-           obj.hOutputImageAxes = axes('Parent', obj.hExternalPanel, ...
-                                        'Box', 'on', ...
-                                        'Visible', 'off', ...
-                                        'Position', [.05 .05 .45 .45], ...
-                                        'Units', 'Normalized');
-
            % TODO SET ******************************* 
            obj.hOutputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, obj.hOutputImageAxes);
            set(obj.hOutputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));

@@ -7,6 +7,11 @@ classdef JPEGEncoder < handle
 % DemoJPEGEncoder Methods:
 %   DemoJPEGEncoder - Constructor takes optional source parameter
 %
+%
+%   Example commands:
+%       obj = JPEGEncoder('exampleImages/lena_color_256.bmp','DoEntropyCoding', false, 'DoReconstruction', true, 'Verbose', true); 
+%       obj.encode('Verbose', false);
+%
 % Copyright 2011, Stephen Ierodiaconou, University of Bristol.
 
     properties (SetObservable)
@@ -17,11 +22,25 @@ classdef JPEGEncoder < handle
     end
     
     properties (SetObservable, SetAccess='private')
+        
+        % If set the entropy coding will be performed, else the encoding
+        % process will stop before
+        doEntropyCoding
+        % If true the encoder will generate extra state to create a
+        % reconstruction of the image with the given coding parameters up
+        % to entropy coding.
+        doReconstruction
+        
+        verbose
+        
         imageMatrix
         imageStruct
         
         luminanceScaledQuantisationTable
         chromaScaledQuantisationTable
+        
+        
+        % REFACTOR
         
         % Getters for these to parse data into format that is more readable
         % ???????
@@ -52,15 +71,22 @@ classdef JPEGEncoder < handle
         crEncodedDCCellArray
         crEncodedACCellArray
         
+        reconstruction
         output
     end
 
     methods
-        function obj = JPEGEncoder(source)
+        function obj = JPEGEncoder(source, varargin)
+            % Construct object setting defaults
             if exist('source','var')
                 obj.input = source;
             end
             obj.setParameterDefaultValues;
+            
+            % Can set parameters on encoder
+            if ~isempty(varargin)
+                obj.setCodingParameters(varargin{:});
+            end
         end
 
         function set.input(obj, data)
@@ -87,36 +113,40 @@ classdef JPEGEncoder < handle
         function set.qualityFactor(obj, data)
             obj.qualityFactor = data;
             
-            % TODO: UPDATE ENCODING
+            % TODO: RESET ALL OTHER DATA WHICH IS NOW INVALID
         end
        
         function set.chromaSamplingMode(obj, data)
             obj.chromaSamplingMode = data;
             
-            % TODO: UPDATE ENCODING
+            % TODO: RESET ALL OTHER DATA WHICH IS NOW INVALID
         end
         
         function setParameterDefaultValues(obj)
-            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0');
+            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', 'DoEntropyCoding', true, 'DoReconstruction', true, 'Verbose', false);
         end
 
         function setCodingParameters(obj, varargin)
-            for k=1:size(varargin,2) 
+            for k=1:2:size(varargin,2) 
                 switch lower(varargin{k})
                     case 'quality'
-                        k = k + 1;
-                        if isa(varargin{k}, 'numeric')
-                            obj.qualityFactor = varargin{k};
+                        if isa(varargin{k+1}, 'numeric')
+                            obj.qualityFactor = varargin{k+1};
                         else
                             throw(MException('JPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.')); 
                         end
                     case 'subsampling'
-                        k = k + 1;
-                        if isa(varargin{k}, 'char')
-                            obj.chromaSamplingMode = varargin{k};
+                        if isa(varargin{k+1}, 'char')
+                            obj.chromaSamplingMode = varargin{k+1};
                         else
                             throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.')); 
                         end
+                    case 'doentropycoding'
+                        obj.doEntropyCoding = varargin{k+1};
+                    case 'doreconstruction'
+                        obj.doReconstruction = varargin{k+1};
+                    case 'verbose'
+                        obj.verbose = varargin{k+1};
                 end
             end
         end
@@ -133,7 +163,7 @@ classdef JPEGEncoder < handle
             obj.setParameterDefaultValues;
         end
         
-        function success = encodeToFile(obj, fileName)
+        function success = encodeToFile(obj, fileName, varargin)
             % ------------------------------------------
             % Encode Baseline DCT JPEG and write to file
             % ------------------------------------------
@@ -143,11 +173,18 @@ classdef JPEGEncoder < handle
             %
             % Returns:
             %
-            
-            success = Utilities.writeBinaryFileFromArray( fileName, Utilities.logicalArrayToUnsignedNumericArray(obj.encode()));
+            data = obj.encode(varargin{:});
+            if isempty(data)
+                disp('Encoding failed, or entropy coding was disabled on parameter list.');
+                success = false;
+            elseif islogical(bits)
+                success = Utilities.writeBinaryFileFromArray(fileName, Utilities.logicalArrayToUnsignedNumericArray(data));
+            else
+                success = Utilities.writeBinaryFileFromArray(fileName, data);
+            end
         end
 
-        function stream = encode(obj)
+        function stream = encode(obj, varargin)
             % ------------------------
             % Encode Baseline DCT JPEG
             % ------------------------
@@ -158,6 +195,12 @@ classdef JPEGEncoder < handle
             %
             % Returns:
             %
+            
+            obj.setCodingParameters(varargin{:});
+
+            if obj.doEntropyCoding; isCoding = 'on'; else isCoding = 'off'; end
+            if obj.doReconstruction; isRec = 'on'; else isRec = 'off'; end
+            if obj.verbose; disp(['Start encoding: (entropy coding: ' isCoding ', reconstruction: ' isRec ') -- Quality Factor: ' num2str(obj.qualityFactor) ', chroma sampling mode: ' obj.chromaSamplingMode]); end
             
             % If subsampling is necessary make sure it has been performed
             if isa(obj.imageStruct, 'struct') 
@@ -229,108 +272,123 @@ classdef JPEGEncoder < handle
             obj.cbDifferentialDCCoefficients    = TransformCoding.differentiallyCodeDC(obj.cbDCCoefficients);
             obj.crDifferentialDCCoefficients    = TransformCoding.differentiallyCodeDC(obj.crDCCoefficients);
             
-            % Huffman Code DC Values
-            % Ref: CCITT Rec. T.81 (1992 E) p.88
-            %
-            % The following generates the table of Huffman codes which
-            % represent the 12 luminance DC difference categories (or
-            % ranges). The codes are generated so that there is no chance
-            % of a code consisting only of 1s.
-            codeLengths = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
-            symbolValues = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
-            huffmanCodesForDCLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+            if obj.doReconstruction
+                
+            end
             
-            % The DC value for each block in raster order
-            obj.yEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCLuminanceCellArray)), obj.yDifferentialDCCoefficients, 'UniformOutput', false);
-            
-            % The Chroma DC Huffman code table for the 12 categories 
-            codeLengths = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
-            symbolValues = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
-            huffmanCodesForDCChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
-            
-            % The DC value for each block in raster order
-            obj.cbEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.cbDifferentialDCCoefficients, 'UniformOutput', false);
-            % The DC value for each block in raster order
-            obj.crEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.crDifferentialDCCoefficients, 'UniformOutput', false);
+            if obj.doEntropyCoding
 
-            % Huffman Code AC Values
-            % Ref: CCITT Rec. T.81 (1992 E) p.89
-            %   Luminance
-            codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
-            symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
-            huffmanCodesForACLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
-            %   Chroma
-            codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
-            symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-            huffmanCodesForACChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
-            
-            % Note, at this point the zerosRunLengthCoding has already
-            % handled the special RS value cases, so the entries need
-            % simply encoding (-1 values are to be ignored)
-            
-            % y
-            % first find -1s
-            %[x,y] = meshgrid(1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,1), 1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,2));
-            flatCoeffs = reshape(obj.yZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.yZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.yZerosRunLengthCodedOrderedACCoefficients,2)]);
-            blockStartIndexes = 1:126:length(flatCoeffs);
-            for i = 1:length(blockStartIndexes)
-                % For each block (raster order)
-                idx = blockStartIndexes(i);
-                lengths = flatCoeffs(idx:idx+62);
-                values = flatCoeffs(idx+63:idx+125);
-                lastIndex = find( lengths == -1, 1);
-                lengths = lengths(1:lastIndex - 1);
-                values = values(1:lastIndex - 1);
-                obj.yEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACLuminanceCellArray)), ...
-                                                lengths, ... % lengths
-                                                values, ... % values
-                                                'UniformOutput', false);
+                % Huffman Code DC Values
+                % Ref: CCITT Rec. T.81 (1992 E) p.88
+                %
+                % The following generates the table of Huffman codes which
+                % represent the 12 luminance DC difference categories (or
+                % ranges). The codes are generated so that there is no chance
+                % of a code consisting only of 1s.
+                codeLengths = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
+                symbolValues = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
+                huffmanCodesForDCLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+
+                % The DC value for each block in raster order
+                obj.yEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCLuminanceCellArray)), obj.yDifferentialDCCoefficients, 'UniformOutput', false);
+
+                % The Chroma DC Huffman code table for the 12 categories 
+                codeLengths = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
+                symbolValues = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
+                huffmanCodesForDCChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+
+                % The DC value for each block in raster order
+                obj.cbEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.cbDifferentialDCCoefficients, 'UniformOutput', false);
+                % The DC value for each block in raster order
+                obj.crEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.crDifferentialDCCoefficients, 'UniformOutput', false);
+
+                % Huffman Code AC Values
+                % Ref: CCITT Rec. T.81 (1992 E) p.89
+                %   Luminance
+                codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
+                symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
+                huffmanCodesForACLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+                %   Chroma
+                codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
+                symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
+                huffmanCodesForACChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+
+                % Note, at this point the zerosRunLengthCoding has already
+                % handled the special RS value cases, so the entries need
+                % simply encoding (-1 values are to be ignored)
+
+                % y
+                % first find -1s
+                %[x,y] = meshgrid(1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,1), 1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,2));
+                flatCoeffs = reshape(obj.yZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.yZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.yZerosRunLengthCodedOrderedACCoefficients,2)]);
+                blockStartIndexes = 1:126:length(flatCoeffs);
+                for i = 1:length(blockStartIndexes)
+                    % For each block (raster order)
+                    idx = blockStartIndexes(i);
+                    lengths = flatCoeffs(idx:idx+62);
+                    values = flatCoeffs(idx+63:idx+125);
+                    lastIndex = find( lengths == -1, 1);
+                    lengths = lengths(1:lastIndex - 1);
+                    values = values(1:lastIndex - 1);
+                    obj.yEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACLuminanceCellArray)), ...
+                                                    lengths, ... % lengths
+                                                    values, ... % values
+                                                    'UniformOutput', false);
+                end
+
+                clear flatCoeffs;
+
+                % cb
+                %obj.cbEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.cbZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
+                flatCoeffs = reshape(obj.cbZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.cbZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.cbZerosRunLengthCodedOrderedACCoefficients,2)]);
+                blockStartIndexes = 1:126:length(flatCoeffs);
+                for i = 1:length(blockStartIndexes)
+                    % For each block (raster order)
+                    idx = blockStartIndexes(i);
+                    lengths = flatCoeffs(idx:idx+62);
+                    values = flatCoeffs(idx+63:idx+125);
+                    lastIndex = find( lengths == -1, 1);
+                    lengths = lengths(1:lastIndex - 1);
+                    values = values(1:lastIndex - 1);
+                    obj.cbEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
+                                                    lengths, ... % lengths
+                                                    values, ... % values
+                                                    'UniformOutput', false);
+                end
+
+                clear flatCoeffs;
+
+                % cr
+                %obj.crEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.crZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
+                flatCoeffs = reshape(obj.crZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.crZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.crZerosRunLengthCodedOrderedACCoefficients,2)]);
+                blockStartIndexes = 1:126:length(flatCoeffs);
+                for i = 1:length(blockStartIndexes)
+                    % For each block (raster order)
+                    idx = blockStartIndexes(i);
+                    lengths = flatCoeffs(idx:idx+62);
+                    values = flatCoeffs(idx+63:idx+125);
+                    lastIndex = find( lengths == -1, 1);
+                    lengths = lengths(1:lastIndex - 1);
+                    values = values(1:lastIndex - 1);
+                    obj.crEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
+                                                    lengths, ... % lengths
+                                                    values, ... % values
+                                                    'UniformOutput', false);
+                end
+
+                clear flatCoeffs;
+
+                % Create the output bitstream
+                stream = obj.createBitStream();
+            else
+                obj.yEncodedDCCellArray = [];
+                obj.cbEncodedDCCellArray = [];
+                obj.crEncodedDCCellArray = [];
+                obj.yEncodedACCellArray = [];
+                obj.cbEncodedACCellArray = [];
+                obj.crEncodedACCellArray = [];
+                stream = [];
             end
-            
-            clear flatCoeffs;
-            
-            % cb
-            %obj.cbEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.cbZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
-            flatCoeffs = reshape(obj.cbZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.cbZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.cbZerosRunLengthCodedOrderedACCoefficients,2)]);
-            blockStartIndexes = 1:126:length(flatCoeffs);
-            for i = 1:length(blockStartIndexes)
-                % For each block (raster order)
-                idx = blockStartIndexes(i);
-                lengths = flatCoeffs(idx:idx+62);
-                values = flatCoeffs(idx+63:idx+125);
-                lastIndex = find( lengths == -1, 1);
-                lengths = lengths(1:lastIndex - 1);
-                values = values(1:lastIndex - 1);
-                obj.cbEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
-                                                lengths, ... % lengths
-                                                values, ... % values
-                                                'UniformOutput', false);
-            end
-            
-            clear flatCoeffs;
-            
-            % cr
-            %obj.crEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.crZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
-            flatCoeffs = reshape(obj.crZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.crZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.crZerosRunLengthCodedOrderedACCoefficients,2)]);
-            blockStartIndexes = 1:126:length(flatCoeffs);
-            for i = 1:length(blockStartIndexes)
-                % For each block (raster order)
-                idx = blockStartIndexes(i);
-                lengths = flatCoeffs(idx:idx+62);
-                values = flatCoeffs(idx+63:idx+125);
-                lastIndex = find( lengths == -1, 1);
-                lengths = lengths(1:lastIndex - 1);
-                values = values(1:lastIndex - 1);
-                obj.crEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
-                                                lengths, ... % lengths
-                                                values, ... % values
-                                                'UniformOutput', false);
-            end
-            
-            clear flatCoeffs;
-            
-            % Create the output bitstream
-            stream = obj.createBitStream();
         end
         
         % Helper Methods
