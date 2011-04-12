@@ -39,38 +39,17 @@ classdef JPEGEncoder < handle
         luminanceScaledQuantisationTable
         chromaScaledQuantisationTable
         
-        
-        % REFACTOR
-        
         % Getters for these to parse data into format that is more readable
         % ???????
-        yCoefficients
-        yQuantisedCoefficients
-        yOrderedCoefficients
-        yZerosRunLengthCodedOrderedACCoefficients
-        yDCCoefficients
-        yDifferentialDCCoefficients
-        yEncodedDCCellArray
-        yEncodedACCellArray
-        
-        cbCoefficients
-        cbQuantisedCoefficients
-        cbOrderedCoefficients
-        cbZerosRunLengthCodedOrderedACCoefficients
-        cbDCCoefficients
-        cbDifferentialDCCoefficients
-        cbEncodedDCCellArray
-        cbEncodedACCellArray
-        
-        crCoefficients
-        crQuantisedCoefficients
-        crOrderedCoefficients
-        crZerosRunLengthCodedOrderedACCoefficients
-        crDCCoefficients
-        crDifferentialDCCoefficients
-        crEncodedDCCellArray
-        crEncodedACCellArray
-        
+        coefficients
+        quantisedCoefficients
+        orderedCoefficients
+        zerosRunLengthCodedOrderedACCoefficients
+        DCCoefficients
+        differentialDCCoefficients
+        encodedDCCellArray
+        encodedACCellArray
+
         reconstruction
         output
     end
@@ -177,7 +156,7 @@ classdef JPEGEncoder < handle
             if isempty(data)
                 disp('Encoding failed, or entropy coding was disabled on parameter list.');
                 success = false;
-            elseif islogical(bits)
+            elseif islogical(data)
                 success = Utilities.writeBinaryFileFromArray(fileName, Utilities.logicalArrayToUnsignedNumericArray(data));
             else
                 success = Utilities.writeBinaryFileFromArray(fileName, data);
@@ -188,13 +167,23 @@ classdef JPEGEncoder < handle
             % ------------------------
             % Encode Baseline DCT JPEG
             % ------------------------
+            %
+            % This function implements the main entropy point into the
+            % actual coding process. It either uses the already set coding
+            % parameters or parses them off the variable length parameter
+            % list. Note that if entropy decoding is disabled the output of
+            % the function will be an empty array and any prior state of
+            % the entropy coding process will be cleared.
+            %
             % Refs: 
             % Baseline process: CCITT Rec. T.81 (1992 E) p.87
             %
             % Parameters:
             %
             % Returns:
-            %
+            %   stream: (doEntropyCoding == true) : a logical array of bits
+            %               representing the final coded file.
+            %           (doEntropyCoding == false) : an empty array
             
             obj.setCodingParameters(varargin{:});
 
@@ -203,7 +192,7 @@ classdef JPEGEncoder < handle
             if obj.verbose; disp(['Start encoding: (entropy coding: ' isCoding ', reconstruction: ' isRec ') -- Quality Factor: ' num2str(obj.qualityFactor) ', chroma sampling mode: ' obj.chromaSamplingMode]); end
             
             % If subsampling is necessary make sure it has been performed
-            if isa(obj.imageStruct, 'struct') 
+            if isa(obj.imageStruct, 'struct')
                 % For each colour channel 
                 if ~isfield(obj.imageStruct, 'y')
                     throw(MException('JPEGEncoder:encode', 'No ''y'' channel was found on the source image.')); 
@@ -234,48 +223,72 @@ classdef JPEGEncoder < handle
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
       
-            % Perform the level shift
+            % Perform the data level shift. This is part of the JPEG
+            % standard. It helps reduce the magnitude of the DC coefficient
+            % so it is in the order of magnitude of the data type used for
+            % the AC coefficient coding process (e.g. 8-bit values).
+            % See the methods docs for more.
             obj.levelShiftInputImage();
+
+            imageSize = size(obj.imageMatrix);
+
+            % Perform the DCT. Here blkproc handles image extension for the
+            % edge blocks smaller than 8x8.
+            % TODO: Reference & description
+            obj.coefficients = cellfun(@(channel)(...
+                                    blkproc(channel, [8 8], @dct2)...
+                                ), obj.imageStruct.levelShiftedChannel, 'UniformOutput', false);
+
+            % Perform quantisation on each channel's coefficients.
+            % Luminance and chroma have different quantisation tables.
+            if imageSize(3) > 1
+                qTables = {obj.luminanceScaledQuantisationTable obj.chromaScaledQuantisationTable obj.chromaScaledQuantisationTable};
+            else
+                qTables = {obj.luminanceScaledQuantisationTable};
+            end
+            obj.quantisedCoefficients = cellfun(@(channel, table)(...
+                                            blkproc(channel, [8 8], @(block)TransformCoding.quantisationWithTable(block, table)) ...
+                                        ), obj.coefficients, qTables, 'UniformOutput', false);
+
+            % Do Zigzag reordering of coefficients. This process collects
+            % the highest energy coefficients of the DCT into the start of
+            % the array of coefficients
+            obj.orderedCoefficients = cellfun(@(coeffs)(...
+                                    blkproc(coeffs, [8 8], @TransformCoding.coefficientOrdering)...
+                                ), obj.quantisedCoefficients, 'UniformOutput', false);
             
-            % Perform DCT and quant, blkproc handles image extension for
-            % edge blocks smaller than 8x8
-            obj.yCoefficients = blkproc(obj.imageStruct.yLevelShifted, [8 8], @dct2);
-            obj.yQuantisedCoefficients = blkproc(obj.yCoefficients, [8 8], @(block)obj.quantiseLuminanceCoefficients(block));
-            
-            obj.cbCoefficients = blkproc(obj.imageStruct.cbLevelShifted, [8 8], @dct2);
-            obj.cbQuantisedCoefficients = blkproc(obj.cbCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
-            
-            obj.crCoefficients = blkproc(obj.imageStruct.crLevelShifted, [8 8], @dct2);
-            obj.crQuantisedCoefficients = blkproc(obj.crCoefficients, [8 8], @(block)obj.quantiseChromaCoefficients(block));
-            
-            % Zigzag
-            obj.yOrderedCoefficients    = blkproc(obj.yQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            obj.cbOrderedCoefficients   = blkproc(obj.cbQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            obj.crOrderedCoefficients   = blkproc(obj.crQuantisedCoefficients, [8 8], @TransformCoding.coefficientOrdering);
-            
-            % RLE
+            % Zeros-run-length code the coefficients. This is efficient
+            % after zigzag ordering as many zeros will have been created in
+            % the low energy coefficients which are now together towards
+            % the end of the ordered coefficient array.
             % blkproc can only return numeric array data of equal size for
             % each block. Hence zerosRunLengthCoding returns the zeroLength
             % and values in a concatenated 126 values array, with -1s
             % padding the unused values (lengths:values)
-            obj.yZerosRunLengthCodedOrderedACCoefficients   = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            obj.cbZerosRunLengthCodedOrderedACCoefficients  = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            obj.crZerosRunLengthCodedOrderedACCoefficients  = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.zerosRunLengthCoding);
-            
-            % DC coefficient lists
-            obj.yDCCoefficients     = blkproc(obj.yOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
-            obj.cbDCCoefficients    = blkproc(obj.cbOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
-            obj.crDCCoefficients    = blkproc(obj.crOrderedCoefficients, [1 64], @TransformCoding.returnDCCoefficient);
+            obj.zerosRunLengthCodedOrderedACCoefficients = cellfun(@(coeffs)(...
+                                    blkproc(coeffs, [1 64], @TransformCoding.zerosRunLengthCoding)...
+                                ), obj.orderedCoefficients, 'UniformOutput', false);
+
+            % Get a list of DC coefficient for each channel
+            obj.DCCoefficients = cellfun(@(coeffs)(...
+                                    blkproc(coeffs, [1 64], @TransformCoding.returnDCCoefficient)...
+                                ), obj.orderedCoefficients, 'UniformOutput', false);
               
-            % Differentially code DC 
-            obj.yDifferentialDCCoefficients     = TransformCoding.differentiallyCodeDC(obj.yDCCoefficients);
-            obj.cbDifferentialDCCoefficients    = TransformCoding.differentiallyCodeDC(obj.cbDCCoefficients);
-            obj.crDifferentialDCCoefficients    = TransformCoding.differentiallyCodeDC(obj.crDCCoefficients);
-            
+            % Differentially code the DC value
+            obj.differentialDCCoefficients = cellfun(@(coeffs)(...
+                                    TransformCoding.differentiallyCodeDC(coeffs)...
+                                ), obj.DCCoefficients, 'UniformOutput', false);
+
+            % If reconstruction is enabled the encoder will to the reverse
+            % of the above process so that the final image can be viewed
+            % without having to perform entropy coding and then decoding
+            % the result
             if obj.doReconstruction
                 
             end
             
+            % Perform entropy coding and create the output file bitstream
+            % if desired.
             if obj.doEntropyCoding
 
                 % Huffman Code DC Values
@@ -285,98 +298,39 @@ classdef JPEGEncoder < handle
                 % represent the 12 luminance DC difference categories (or
                 % ranges). The codes are generated so that there is no chance
                 % of a code consisting only of 1s.
-                codeLengths = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
-                symbolValues = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
-                huffmanCodesForDCLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
-
-                % The DC value for each block in raster order
-                obj.yEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCLuminanceCellArray)), obj.yDifferentialDCCoefficients, 'UniformOutput', false);
+                codeLengths     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
+                symbolValues    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
+                huffmanCodesForDC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
 
                 % The Chroma DC Huffman code table for the 12 categories 
-                codeLengths = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
-                symbolValues = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
-                huffmanCodesForDCChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+                codeLengths     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
+                symbolValues    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
+                huffmanCodesForDC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
 
                 % The DC value for each block in raster order
-                obj.cbEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.cbDifferentialDCCoefficients, 'UniformOutput', false);
-                % The DC value for each block in raster order
-                obj.crEncodedDCCellArray = arrayfun(@(x)(EntropyCoding.encodeDCValue(x, huffmanCodesForDCChromaCellArray)), obj.crDifferentialDCCoefficients, 'UniformOutput', false);
+                obj.encodedDCCellArray = arrayfun(@(channelID)( ...
+                                                    arrayfun(@(x)(...
+                                                        EntropyCoding.encodeDCValue(x, huffmanCodesForDC{floor(channelID/2)+1}) ...
+                                                    ), obj.differentialDCCoefficients{channelID}, 'UniformOutput', false)...
+                                                ), 1:imageSize(3), 'UniformOutput', false);
 
                 % Huffman Code AC Values
                 % Ref: CCITT Rec. T.81 (1992 E) p.89
                 %   Luminance
                 codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
                 symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
-                huffmanCodesForACLuminanceCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+                huffmanCodesForAC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
                 %   Chroma
                 codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
                 symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-                huffmanCodesForACChromaCellArray = obj.createHuffmanCodes(codeLengths, symbolValues);
+                huffmanCodesForAC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
 
                 % Note, at this point the zerosRunLengthCoding has already
                 % handled the special RS value cases, so the entries need
                 % simply encoding (-1 values are to be ignored)
-
-                % y
-                % first find -1s
-                %[x,y] = meshgrid(1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,1), 1:size(obj.yZerosRunLengthCodedOrderedACCoefficients,2));
-                flatCoeffs = reshape(obj.yZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.yZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.yZerosRunLengthCodedOrderedACCoefficients,2)]);
-                blockStartIndexes = 1:126:length(flatCoeffs);
-                for i = 1:length(blockStartIndexes)
-                    % For each block (raster order)
-                    idx = blockStartIndexes(i);
-                    lengths = flatCoeffs(idx:idx+62);
-                    values = flatCoeffs(idx+63:idx+125);
-                    lastIndex = find( lengths == -1, 1);
-                    lengths = lengths(1:lastIndex - 1);
-                    values = values(1:lastIndex - 1);
-                    obj.yEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACLuminanceCellArray)), ...
-                                                    lengths, ... % lengths
-                                                    values, ... % values
-                                                    'UniformOutput', false);
-                end
-
-                clear flatCoeffs;
-
-                % cb
-                %obj.cbEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.cbZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
-                flatCoeffs = reshape(obj.cbZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.cbZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.cbZerosRunLengthCodedOrderedACCoefficients,2)]);
-                blockStartIndexes = 1:126:length(flatCoeffs);
-                for i = 1:length(blockStartIndexes)
-                    % For each block (raster order)
-                    idx = blockStartIndexes(i);
-                    lengths = flatCoeffs(idx:idx+62);
-                    values = flatCoeffs(idx+63:idx+125);
-                    lastIndex = find( lengths == -1, 1);
-                    lengths = lengths(1:lastIndex - 1);
-                    values = values(1:lastIndex - 1);
-                    obj.cbEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
-                                                    lengths, ... % lengths
-                                                    values, ... % values
-                                                    'UniformOutput', false);
-                end
-
-                clear flatCoeffs;
-
-                % cr
-                %obj.crEncodedACCellArray = arrayfun(@(x)(EntropyCoding.encodeACValue(x, huffmanCodesForACChromaCellArray)), obj.crZerosRunLengthCodedOrderedACCoefficients, 'UniformOutput', false);
-                flatCoeffs = reshape(obj.crZerosRunLengthCodedOrderedACCoefficients.', [1 size(obj.crZerosRunLengthCodedOrderedACCoefficients, 1)*size(obj.crZerosRunLengthCodedOrderedACCoefficients,2)]);
-                blockStartIndexes = 1:126:length(flatCoeffs);
-                for i = 1:length(blockStartIndexes)
-                    % For each block (raster order)
-                    idx = blockStartIndexes(i);
-                    lengths = flatCoeffs(idx:idx+62);
-                    values = flatCoeffs(idx+63:idx+125);
-                    lastIndex = find( lengths == -1, 1);
-                    lengths = lengths(1:lastIndex - 1);
-                    values = values(1:lastIndex - 1);
-                    obj.crEncodedACCellArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodesForACChromaCellArray)), ...
-                                                    lengths, ... % lengths
-                                                    values, ... % values
-                                                    'UniformOutput', false);
-                end
-
-                clear flatCoeffs;
+                obj.encodedACCellArray = arrayfun(@(channelID)( ...
+                                                    obj.encodeACCoefficientsOfChannel(channelID, huffmanCodesForAC{floor(channelID/2)+1}) ...
+                                                ), 1:imageSize(3), 'UniformOutput', false);
 
                 % Create the output bitstream
                 stream = obj.createBitStream();
@@ -392,6 +346,7 @@ classdef JPEGEncoder < handle
         end
         
         % Helper Methods
+        % TODO : make this a package function
         function levelShiftInputImage(obj)
             % -----------
             % Level Shift
@@ -407,17 +362,34 @@ classdef JPEGEncoder < handle
             
             %%%%% After a non-differential frame decoding process computes
             %%%%% the IDCT and produces a block of reconstructed image samples, an inverse level shift shall restore the samples to the unsigned representation by adding 2P ? 1 and clamping the results to the range 0 to 2P ? 1.
-            obj.imageStruct.yLevelShifted   = int8(double(obj.imageStruct.y) - 128);
-            obj.imageStruct.cbLevelShifted  = int8(double(obj.imageStruct.cb) - 128);
-            obj.imageStruct.crLevelShifted  = int8(double(obj.imageStruct.cr) - 128);
+            if isfield(obj.imageStruct, {'y', 'cb', 'cr'})
+                channels = {'y', 'cb', 'cr'};
+            elseif isfield(obj.imageStruct, {'r', 'g', 'b'})
+                channels = {'r', 'g', 'b'};
+            else
+                throw(MException('JPEGEncoder:levelShiftInputImage', 'For now only y,cb,cr or r,g,b images are supported'));
+            end
+            obj.imageStruct.levelShiftedChannel = cellfun(@(channel)(int8(double(obj.imageStruct.(channel)) - 128)), channels, 'UniformOutput', false);
         end
-        
-        function coeffs = quantiseLuminanceCoefficients(obj, block)
-            coeffs = TransformCoding.luminanceQuantisation(block, obj.luminanceScaledQuantisationTable);
-        end
-        
-        function coeffs = quantiseChromaCoefficients(obj, block)
-            coeffs = TransformCoding.chromaQuantisation(block, obj.chromaScaledQuantisationTable);
+
+        function encodedArray = encodeACCoefficientsOfChannel(obj, channelID, huffmanCodes)
+            % first find -1s
+            flatCoeffs = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{channelID}.', [1 numel(obj.zerosRunLengthCodedOrderedACCoefficients{channelID})]);
+            blockStartIndexes = 1:126:length(flatCoeffs);
+            encodedArray = cell(1, length(blockStartIndexes));
+            for i = 1:length(blockStartIndexes)
+                % For each block (raster order)
+                idx = blockStartIndexes(i);
+                lengths = flatCoeffs(idx:idx+62);
+                values = flatCoeffs(idx+63:idx+125);
+                lastIndex = find( lengths == -1, 1);
+                lengths = lengths(1:lastIndex - 1);
+                values = values(1:lastIndex - 1);
+                encodedArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodes)), ...
+                                                lengths, ... % lengths
+                                                values, ... % values
+                                                'UniformOutput', false);
+            end
         end
         
         function huffmanCodesCellArray = createHuffmanCodes(obj, bits, huffvals)
@@ -524,15 +496,18 @@ classdef JPEGEncoder < handle
             frameHeader = obj.createBitStreamForFrameHeader();
             quantisationTables = obj.createBitStreamForQuantisationTables();
             huffmanTables = obj.createBitStreamForHuffmanTables();
-                        
-            scanHeaderY = obj.createBitStreamForScanHeaderForSingleChannel('y');
-            entropyCodedSegmentY = obj.createBitStreamForEntropyCodedDataForSingleChannel('y');
+
+            % TODO: this needs to be modified to support single channel
+            % images
             
-            scanHeaderCb = obj.createBitStreamForScanHeaderForSingleChannel('cb');
-            entropyCodedSegmentCb = obj.createBitStreamForEntropyCodedDataForSingleChannel('cb');
+            scanHeaderY = obj.createBitStreamForScanHeaderForSingleChannel(1);
+            entropyCodedSegmentY = obj.createBitStreamForEntropyCodedDataForSingleChannel(1);
             
-            scanHeaderCr = obj.createBitStreamForScanHeaderForSingleChannel('cr');
-            entropyCodedSegmentCr = obj.createBitStreamForEntropyCodedDataForSingleChannel('cr');
+            scanHeaderCb = obj.createBitStreamForScanHeaderForSingleChannel(2);
+            entropyCodedSegmentCb = obj.createBitStreamForEntropyCodedDataForSingleChannel(2);
+            
+            scanHeaderCr = obj.createBitStreamForScanHeaderForSingleChannel(3);
+            entropyCodedSegmentCr = obj.createBitStreamForEntropyCodedDataForSingleChannel(3);
             
             stream = cat(2, markerStartOfImage, ... % SOI
                 quantisationTables, ... % Tables for this image
@@ -549,27 +524,15 @@ classdef JPEGEncoder < handle
             obj.output = stream;
         end
         
-        function bits = createBitStreamForEntropyCodedDataForSingleChannel(obj, type)
+        function bits = createBitStreamForEntropyCodedDataForSingleChannel(obj, channelID)
             % -----------
             % Entropy Coded Segment
             % -----------
             
-            bits = [];
-            
-            switch type
-                case 'y'
-                    dcCell = obj.yEncodedDCCellArray;
-                    acCell = obj.yEncodedACCellArray;
-                case 'cb'
-                    dcCell = obj.cbEncodedDCCellArray;
-                    acCell = obj.cbEncodedACCellArray;
-                case 'cr'
-                    dcCell = obj.crEncodedDCCellArray;
-                    acCell = obj.crEncodedACCellArray;
-            end
-            
-            for i=1:length(dcCell)
-                bits = cat(2, bits, dcCell{i}, cell2mat(acCell{i}));
+            bits = logical([]);
+
+            for i=1:length(obj.encodedDCCellArray{channelID})
+                bits = cat(2, bits, obj.encodedDCCellArray{channelID}{i}, cell2mat(obj.encodedACCellArray{channelID}{i}));
             end
 
             bits = Utilities.padLogicalArray(bits, 8, 1);
@@ -577,7 +540,7 @@ classdef JPEGEncoder < handle
 
         end
         
-        function bits = createBitStreamForScanHeaderForSingleChannel(obj, type)
+        function bits = createBitStreamForScanHeaderForSingleChannel(obj, channelID)
             % -----------
             % Scan Header
             % -----------
@@ -588,29 +551,18 @@ classdef JPEGEncoder < handle
             % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
             
             % SOS marker
-            markerStartOfScan       = Utilities.hexToShort('FFDA');
+            markerStartOfScan   = Utilities.hexToShort('FFDA');
             
             % Ls    (2 bytes)
             segmentLength       = Utilities.decimalToShort(6 + (2*1));
             % Ns    (1 byte)
             componentCount      = Utilities.decimalToByte(1);
-            switch type
-                case 'y'
-                    % Cs1   (1 byte)
-                    channelID          = Utilities.decimalToByte(1);
-                    % Td1:Ta1 (1 byte)
-                    channelTableIDs    = Utilities.decimalNibblesToByte(0, 0);
-                case 'cb'
-                    % Cs2   (1 byte)
-                    channelID         = Utilities.decimalToByte(2);
-                    % Td2:Ta2 (1 byte)
-                    channelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
-                case 'cr'
-                    % Cs3   (1 byte)
-                    channelID         = Utilities.decimalToByte(3);
-                    % Td3:Ta3 (1 byte)
-                    channelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
-            end
+
+            % CsX   (1 byte)
+            channelIDByte       = Utilities.decimalToByte(channelID);
+            % TdX:TaX (1 byte)
+            channelTableIDs     = Utilities.decimalNibblesToByte(floor(channelID/2), floor(channelID/2));
+
             % Ss    (1 byte)
             startPredictorID    = Utilities.decimalToByte(0);
             % Se    (1 byte)
@@ -622,52 +574,12 @@ classdef JPEGEncoder < handle
                 markerStartOfScan, ...
                 segmentLength, ...
                 componentCount, ...
-                channelID, ...
+                channelIDByte, ...
                 channelTableIDs, ...
                 startPredictorID, ...
                 endPredictorID, ...
                 successiveApproximationBitPosition ...
                 );
-
-            %{
-            % Ls    (2 bytes)
-            segmentLength       = Utilities.decimalToShort(6 + (2*3));
-            % Ns    (1 byte)
-            componentCount      = Utilities.decimalToByte(3);
-            % Cs1   (1 byte)
-            yChannelID          = Utilities.decimalToByte(1);
-            % Td1:Ta1 (1 byte)
-            yChannelTableIDs    = Utilities.decimalNibblesToByte(0, 0);
-            % Cs2   (1 byte)
-            cbChannelID         = Utilities.decimalToByte(2);
-            % Td2:Ta2 (1 byte)
-            cbChannelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
-            % Cs3   (1 byte)
-            crChannelID         = Utilities.decimalToByte(3);
-            % Td3:Ta3 (1 byte)
-            crChannelTableIDs   = Utilities.decimalNibblesToByte(1, 1);
-            % Ss    (1 byte)
-            startPredictorID    = Utilities.decimalToByte(0);
-            % Se    (1 byte)
-            endPredictorID      = Utilities.decimalToByte(63);
-            % Ah:Al (1 byte)
-            successiveApproximationBitPosition = Utilities.decimalNibblesToByte(0, 0);
-            
-            bits = cat(2, ...
-                markerStartOfScan, ...
-                segmentLength, ...
-                componentCount, ...
-                yChannelID, ...
-                yChannelTableIDs, ...
-                cbChannelID, ...
-                cbChannelTableIDs, ...
-                crChannelID, ...
-                crChannelTableIDs, ...
-                startPredictorID, ...
-                endPredictorID, ...
-                successiveApproximationBitPosition ...
-                );
-            %}
         end
         
         function bits = createBitStreamForFrameHeader(obj)
