@@ -45,6 +45,7 @@ classdef JPEGEncoder < handle
         imageMatrix
         imageStruct
         
+        basisCoefficientMap
         luminanceScaledQuantisationTable
         chromaScaledQuantisationTable
         
@@ -154,6 +155,8 @@ classdef JPEGEncoder < handle
                         obj.verbose = varargin{k+1};
                     case 'builtins'
                         obj.useBuiltInMethods = varargin{k+1};
+                    case 'coefficientmap'
+                        obj.basisCoefficientMap = varargin{k+1};
                 end
             end
             
@@ -287,6 +290,12 @@ classdef JPEGEncoder < handle
             obj.quantisedCoefficients = cellfun(@(channel, table)(...
                                             blkproc(channel, [8 8], @(block)TransformCoding.quantisationWithTable(block, table)) ...
                                         ), obj.coefficients, qTables, 'UniformOutput', false);
+
+            if ~isempty(obj.basisCoefficientMap)
+                obj.quantisedCoefficients = cellfun(@(channel)(...
+                                            blkproc(channel, [8 8], @(block)(double(obj.basisCoefficientMap).*block)) ...
+                                        ), obj.quantisedCoefficients, 'UniformOutput', false);
+            end
 
             % Do Zigzag reordering of coefficients. This process collects
             % the highest energy coefficients of the DCT into the start of
