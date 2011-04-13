@@ -30,6 +30,8 @@ classdef JPEGEncoder < handle
         % reconstruction of the image with the given coding parameters up
         % to entropy coding.
         doReconstruction
+        % Use MATLAB built-in or toolbox methods of lib/ versions
+        useBuiltInMethods
         
         verbose
         
@@ -105,7 +107,7 @@ classdef JPEGEncoder < handle
         end
         
         function setParameterDefaultValues(obj)
-            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', 'DoEntropyCoding', true, 'DoReconstruction', true, 'Verbose', false);
+            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', 'DoEntropyCoding', true, 'DoReconstruction', true, 'Verbose', false, 'BuiltIns', false);
         end
 
         function setCodingParameters(obj, varargin)
@@ -129,6 +131,8 @@ classdef JPEGEncoder < handle
                         obj.doReconstruction = varargin{k+1};
                     case 'verbose'
                         obj.verbose = varargin{k+1};
+                    case 'builtins'
+                        obj.useBuiltInMethods = varargin{k+1};
                 end
             end
         end
@@ -189,6 +193,13 @@ classdef JPEGEncoder < handle
             %           (doEntropyCoding == false) : an empty array
             
             obj.setCodingParameters(varargin{:});
+            
+            if obj.useBuiltInMethods
+                methods = struct('DCT', @dct2, 'IDCT', @idct2);
+            else
+                addpath('lib');
+                methods = struct('DCT', @mirt_dctn, 'IDCT', @mirt_idctn);
+            end
 
             if obj.doEntropyCoding; isCoding = 'on'; else isCoding = 'off'; end
             if obj.doReconstruction; isRec = 'on'; else isRec = 'off'; end
@@ -239,7 +250,7 @@ classdef JPEGEncoder < handle
             % edge blocks smaller than 8x8.
             % TODO: Reference & description
             obj.coefficients = cellfun(@(channel)(...
-                                    blkproc(channel, [8 8], @dct2)...
+                                    blkproc(channel, [8 8], methods.DCT)...
                                 ), obj.imageStruct.levelShiftedChannel, 'UniformOutput', false);
 
             % Perform quantisation on each channel's coefficients.
@@ -299,7 +310,7 @@ classdef JPEGEncoder < handle
                                         ), obj.quantisedCoefficients, qTables, 'UniformOutput', false);
 
                 inverseTransformed = cellfun(@(channel)(...
-                                                blkproc(channel, [8 8], @idct2)...
+                                                blkproc(channel, [8 8], methods.IDCT)...
                                         ), obj.reconstructQuantisedCoefficients, 'UniformOutput', false);
 
                 inverseTransformedShifted = cellfun(@(channel)(uint8(double(channel) + 128)), inverseTransformed, 'UniformOutput', false);
