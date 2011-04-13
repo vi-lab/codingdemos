@@ -22,14 +22,21 @@ classdef JPEGEncoder < handle
     end
     
     properties (SetObservable, SetAccess='private')
-        
-        % If set the entropy coding will be performed, else the encoding
-        % process will stop before
-        doEntropyCoding
+
         % If true the encoder will generate extra state to create a
         % reconstruction of the image with the given coding parameters up
         % to entropy coding.
         doReconstruction
+
+        % If 'runLengthCoding' true encoder will do the zero run-length
+        % coding procedure. If 'reOrderingCoefficients' is true then the
+        % encoder will reorder the coefficients into zigzags. If
+        % 'differentialDC' is true then the encoder will make the DC
+        % coefficient differentials. If 'entropyCoding' is true then the
+        % entropy coding will be performed, else the encoding process will
+        % stop before
+        isEnabledStage
+
         % Use MATLAB built-in or toolbox methods of lib/ versions
         useBuiltInMethods
         
@@ -107,7 +114,9 @@ classdef JPEGEncoder < handle
         end
         
         function setParameterDefaultValues(obj)
-            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', 'DoEntropyCoding', true, 'DoReconstruction', true, 'Verbose', false, 'BuiltIns', false);
+            obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', ...
+                'DoEntropyCoding', true, 'DoReconstruction', true, 'DoRunLengthCoding', true, 'DoReordering', true, 'DoDCDifferentials', true, ...
+                'Verbose', false, 'BuiltIns', false);
         end
 
         function setCodingParameters(obj, varargin)
@@ -125,8 +134,20 @@ classdef JPEGEncoder < handle
                         else
                             throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.')); 
                         end
+                    case 'dostagesafterquantisation'
+                        c = varargin{k+1};
+                        obj.isEnabledStage.reOrderingCoefficients = c;
+                        obj.isEnabledStage.runLengthCoding = c;
+                        obj.isEnabledStage.differentialDC = c;
+                        obj.isEnabledStage.entropyCoding = c;
+                    case 'dorunlengthcoding'
+                        obj.isEnabledStage.runLengthCoding = varargin{k+1};
+                    case 'doreordering'
+                        obj.isEnabledStage.reOrderingCoefficients = varargin{k+1};
+                    case 'dodcdifferentials'
+                        obj.isEnabledStage.differentialDC = varargin{k+1};
                     case 'doentropycoding'
-                        obj.doEntropyCoding = varargin{k+1};
+                        obj.isEnabledStage.entropyCoding = varargin{k+1};
                     case 'doreconstruction'
                         obj.doReconstruction = varargin{k+1};
                     case 'verbose'
@@ -135,6 +156,9 @@ classdef JPEGEncoder < handle
                         obj.useBuiltInMethods = varargin{k+1};
                 end
             end
+            
+            % ************************************************************
+            % TODO throw exception on invalid combos
         end
         
         function reset(obj)
@@ -201,7 +225,7 @@ classdef JPEGEncoder < handle
                 methods = struct('DCT', @mirt_dctn, 'IDCT', @mirt_idctn);
             end
 
-            if obj.doEntropyCoding; isCoding = 'on'; else isCoding = 'off'; end
+            if obj.isEnabledStage.entropyCoding; isCoding = 'on'; else isCoding = 'off'; end
             if obj.doReconstruction; isRec = 'on'; else isRec = 'off'; end
             if obj.verbose; disp(['Start encoding: (entropy coding: ' isCoding ', reconstruction: ' isRec ') -- Quality Factor: ' num2str(obj.qualityFactor) ', chroma sampling mode: ' obj.chromaSamplingMode]); end
             
@@ -267,9 +291,11 @@ classdef JPEGEncoder < handle
             % Do Zigzag reordering of coefficients. This process collects
             % the highest energy coefficients of the DCT into the start of
             % the array of coefficients
-            obj.orderedCoefficients = cellfun(@(coeffs)(...
+            if obj.isEnabledStage.reOrderingCoefficients
+                obj.orderedCoefficients = cellfun(@(coeffs)(...
                                     blkproc(coeffs, [8 8], @TransformCoding.coefficientOrdering)...
                                 ), obj.quantisedCoefficients, 'UniformOutput', false);
+            end
             
             % Zeros-run-length code the coefficients. This is efficient
             % after zigzag ordering as many zeros will have been created in
@@ -279,31 +305,28 @@ classdef JPEGEncoder < handle
             % each block. Hence zerosRunLengthCoding returns the zeroLength
             % and values in a concatenated 126 values array, with -1s
             % padding the unused values (lengths:values)
-            obj.zerosRunLengthCodedOrderedACCoefficients = cellfun(@(coeffs)(...
+            if obj.isEnabledStage.runLengthCoding
+                obj.zerosRunLengthCodedOrderedACCoefficients = cellfun(@(coeffs)(...
                                     blkproc(coeffs, [1 64], @TransformCoding.zerosRunLengthCoding)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
-
+            end
             % Get a list of DC coefficient for each channel
-            obj.DCCoefficients = cellfun(@(coeffs)(...
+            if obj.isEnabledStage.differentialDC
+                obj.DCCoefficients = cellfun(@(coeffs)(...
                                     blkproc(coeffs, [1 64], @TransformCoding.returnDCCoefficient)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
               
-            % Differentially code the DC value
-            obj.differentialDCCoefficients = cellfun(@(coeffs)(...
+                % Differentially code the DC value
+                obj.differentialDCCoefficients = cellfun(@(coeffs)(...
                                     TransformCoding.differentiallyCodeDC(coeffs)...
                                 ), obj.DCCoefficients, 'UniformOutput', false);
+            end
 
             % If reconstruction is enabled the encoder will to the reverse
             % of the above process so that the final image can be viewed
             % without having to perform entropy coding and then decoding
             % the result
             if obj.doReconstruction
-
-                %if imageSize(3) > 1
-                %    qTables = {obj.luminanceScaledQuantisationTable obj.chromaScaledQuantisationTable obj.chromaScaledQuantisationTable};
-                %else
-                %    qTables = {obj.luminanceScaledQuantisationTable};
-                %end
 
                 obj.reconstructQuantisedCoefficients = cellfun(@(channel, table)(...
                                             blkproc(channel, [8 8], @(block)TransformCoding.dequantisationWithTable(block, table)) ...
@@ -323,7 +346,7 @@ classdef JPEGEncoder < handle
 
             % Perform entropy coding and create the output file bitstream
             % if desired.
-            if obj.doEntropyCoding
+            if obj.isEnabledStage.entropyCoding
 
                 % Huffman Code DC Values
                 % Ref: CCITT Rec. T.81 (1992 E) p.88
