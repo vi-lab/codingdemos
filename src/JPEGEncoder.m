@@ -49,6 +49,9 @@ classdef JPEGEncoder < handle
         differentialDCCoefficients
         encodedDCCellArray
         encodedACCellArray
+        
+        reconstructQuantisedCoefficients
+        reconstructCoefficients
 
         reconstruction
         output
@@ -284,9 +287,29 @@ classdef JPEGEncoder < handle
             % without having to perform entropy coding and then decoding
             % the result
             if obj.doReconstruction
-                
+
+                %if imageSize(3) > 1
+                %    qTables = {obj.luminanceScaledQuantisationTable obj.chromaScaledQuantisationTable obj.chromaScaledQuantisationTable};
+                %else
+                %    qTables = {obj.luminanceScaledQuantisationTable};
+                %end
+
+                obj.reconstructQuantisedCoefficients = cellfun(@(channel, table)(...
+                                            blkproc(channel, [8 8], @(block)TransformCoding.dequantisationWithTable(block, table)) ...
+                                        ), obj.quantisedCoefficients, qTables, 'UniformOutput', false);
+
+                inverseTransformed = cellfun(@(channel)(...
+                                                blkproc(channel, [8 8], @idct2)...
+                                        ), obj.reconstructQuantisedCoefficients, 'UniformOutput', false);
+
+                inverseTransformedShifted = cellfun(@(channel)(uint8(double(channel) + 128)), inverseTransformed, 'UniformOutput', false);
+
+                structImage = cell2struct(inverseTransformedShifted, {'y', 'cb', 'cr'}, 2);
+                structImage.mode = obj.chromaSamplingMode;
+                obj.reconstruction = structImage;
+
             end
-            
+
             % Perform entropy coding and create the output file bitstream
             % if desired.
             if obj.doEntropyCoding
@@ -335,12 +358,9 @@ classdef JPEGEncoder < handle
                 % Create the output bitstream
                 stream = obj.createBitStream();
             else
-                obj.yEncodedDCCellArray = [];
-                obj.cbEncodedDCCellArray = [];
-                obj.crEncodedDCCellArray = [];
-                obj.yEncodedACCellArray = [];
-                obj.cbEncodedACCellArray = [];
-                obj.crEncodedACCellArray = [];
+                obj.encodedDCCellArray = [];
+                obj.encodedDCCellArray = [];
+                obj.encodedDCCellArray = [];
                 stream = [];
             end
         end
