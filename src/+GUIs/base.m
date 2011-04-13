@@ -27,17 +27,34 @@ classdef base < handle
             scrsz = get(0, 'ScreenSize');
             obj.windowSize = scrsz;
             obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.75 scrsz(3)*0.75], 'Color', [1 1 1]);
-            
+
+            screensInOrder = GUIs.order;
+
+            screenID = strmatch(class(obj), screensInOrder);
+            prevID = screenID - 1;
+            if prevID < 1
+                prevID = length(screensInOrder);
+            end
+            nextID = screenID + 1;
+            if nextID > length(screensInOrder)
+                nextID = 1;
+            end            
             % Hide Standard Toolbar
             set(obj.hMainWindow,'Toolbar','none');
             % Custom Toolbar
             obj.hMainToolbar = uitoolbar( obj.hMainWindow );
             icon = imresize(imread('+GUIs/images/icons/home_48.png','BackgroundColor',[1 1 1]), [16 16]);
-            obj.hButtonHome = uipushtool(obj.hMainToolbar,'CData',icon,'TooltipString','Back to Home Screen.');
+            obj.hButtonHome = uipushtool(obj.hMainToolbar,'CData',icon,'TooltipString','Back to Home Screen.',...
+                                                    'ClickedCallback', @(source, event)(obj.changeScreen(screensInOrder{1})));
+
             icon = imresize(imread('+GUIs/images/icons/arrow_left_green_48.png','BackgroundColor',[1 1 1]), [16 16]);
-            obj.hButtonBackUp = uipushtool(obj.hMainToolbar,'CData',icon,'TooltipString','Back to previous Screen.');
+            obj.hButtonBackUp = uipushtool(obj.hMainToolbar,'CData',icon,'TooltipString','Back to previous Screen.',...
+                                                    'ClickedCallback', @(source, event)(obj.changeScreen(screensInOrder{prevID})));
+
             icon = imresize(imread('+GUIs/images/icons/arrow_right_green_48.png','BackgroundColor',[1 1 1]), [16 16]);
-            obj.hButtonNext = uipushtool(obj.hMainToolbar,'CData',icon,'TooltipString','To next Screen.');
+            obj.hButtonNext = uipushtool(obj.hMainToolbar,'CData',icon,'TooltipString','To next Screen.', ...
+                                                    'ClickedCallback', @(source, event)(obj.changeScreen(screensInOrder{nextID})));
+
             icon = imresize(imread('+GUIs/images/icons/add_48.png','BackgroundColor',[1 1 1]), [16 16]);
             obj.hButtonAdvancedMode = uitoggletool(obj.hMainToolbar,'CData',icon,'TooltipString','Toggle Advanced options...', ...
                                                     'Separator','on', ...
@@ -167,7 +184,12 @@ classdef base < handle
         function fileNames = getExampleImagesFromExamplesDirectory(obj, directory)
            examples = struct2cell([dir(fullfile(directory, '*.bmp')) dir(fullfile(directory, '*.jpg')) dir(fullfile(directory, '*.png'))]);
            fileNames = examples(1,:);
-       end
+        end
+       
+        function changeScreen(obj, screenName)
+            eval([screenName ';']);
+            close(obj.hMainWindow);
+        end
        
    end
 end 
