@@ -16,13 +16,17 @@ classdef TransformWindow < GUIs.base
    
 	methods
         function obj = TransformWindow(encoder, decoder)
-           
+
             obj = obj@GUIs.base('Transform Coding: DCT');
-           
+
             if ~exist('encoder', 'var')
                 throw(MException('TransformWindow:TransformWindow', 'You must pass in the instance of the JPEG encoder.'));
             end
-           
+
+            if isempty(encoder.reconstruction)
+                encoder.encode('DoStagesAfterQuantisation', false, 'DoReconstruction', true);
+            end
+
             obj.encoderInstance = encoder;
            
             % Input and output image axes
@@ -38,6 +42,29 @@ classdef TransformWindow < GUIs.base
                                                 'Value', obj.encoderInstance.qualityFactor,...
                                                 'Callback', @(source, event)(obj.quantisationFactorChange(source)));
             
+            obj.updateAxes();
+        end
+
+        function quantisationFactorChange(obj, source)
+            set(source, 'Enable', 'off');
+            drawnow;
+            % add monitor
+            %addlistener(obj.encoderInstance, 'reconstruction', 'PostSet', @(source, event)obj.encoderFinishedQuantisationChange(source, event));            
+            % Spawn on thread
+
+            
+            % Just call directly
+            obj.encoderInstance.qualityFactor = ceil(get(source, 'Value'));
+            obj.encoderInstance.encode('DoEntropyCode', false, 'DoReconstruction', true);
+
+            %disp('Finished quantisation change.');
+            
+            set(obj.hQuantisationSlider, 'Enable', 'on');
+            
+            obj.updateAxes();
+        end
+        
+        function updateAxes(obj)
             obj.hInputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);           
             set(obj.hInputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
 
@@ -45,21 +72,6 @@ classdef TransformWindow < GUIs.base
             set(obj.hOutputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
         end
 
-        function quantisationFactorChange(obj, source)
-            % add monitor
-            addlistener(obj.encoderInstance, 'reconstruction', 'PostSet', @obj.encoderFinishedQuantisationChange);
-            
-            obj.encoderInstance.qualityFactor = ceil(get(source, 'Value'));
-            obj.encoderInstance.encode('DoEntropyCode', false, 'DoReconstruction', true);
-
-            % disable
-            set(source, 'Enable', 'off');
-        end
-        
-        function encoderFinishedQuantisationChange(obj)
-            disp('Finished quantisation change.');
-            set(obj.hQuantisationSlider, 'Enable', 'on');
-        end
     end
 end
 %{
