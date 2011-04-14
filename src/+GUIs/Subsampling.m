@@ -309,7 +309,7 @@ classdef Subsampling < GUIs.base
            end
 
            obj.doSubsamplingOnImageMatrix();
-           obj.updateAxes();
+           obj.updateAxes(true);
        end
        
         function changeInput(obj, source)
@@ -335,12 +335,12 @@ classdef Subsampling < GUIs.base
             
             obj.updateCheckBoxStatus();
             
-            obj.updateAxes();
+            obj.updateAxes(true);
        end
        
         function changeShowChannelWithColour(obj, source)
             obj.showChannelInColour = get(source, 'Value');
-            obj.updateAxes();
+            obj.updateAxes(true);
         end
        
         function toggleShowImageWithUpsampling(obj, source)
@@ -397,7 +397,7 @@ classdef Subsampling < GUIs.base
                     obj.interpolationMode = 'bicubic';
             end
            
-            obj.updateAxes();
+            obj.updateAxes(true);
         end
        
        function doSubsamplingOnImageMatrix(obj)
@@ -408,17 +408,25 @@ classdef Subsampling < GUIs.base
             end
        end
 
-       function updatePixelCounts(obj)
-           for i=1:length(obj.imageStruct)
-               [ yHi yVi cbHi cbVi crHi crVi ] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct{i}.mode);
-               pixelcount = numel(obj.imageStruct{i}.y) + numel(obj.imageStruct{i}.cb) + numel(obj.imageStruct{i}.cr);
-               set(obj.hSubsampledImagePixelCount{i}, 'String', ['Number of Pixels: ' num2str(pixelcount)]);
-           end
-       end
+        function updatePixelCounts(obj)
+            for i=1:length(obj.imageStruct)
+                [ yHi yVi cbHi cbVi crHi crVi ] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct{i}.mode);
+                pixelcount = numel(obj.imageStruct{i}.y) + numel(obj.imageStruct{i}.cb) + numel(obj.imageStruct{i}.cr);
+                set(obj.hSubsampledImagePixelCount{i}, 'String', ['Number of Pixels: ' num2str(pixelcount)]);
+            end
+        end
 
-       function updateAxes(obj)
-           if ~isempty(obj.inputMatrix)
-               for i=1:length(obj.imageStruct)
+        function updateAxes(obj, saveZoomState)
+            if ~exist('saveZoomState', 'var');
+                saveZoomState = false;
+            end
+            if ~isempty(obj.inputMatrix)
+                for i=1:length(obj.imageStruct)
+                    % save zoom state
+                    if saveZoomState
+                        currentLimsX = get(obj.hSubsampledImageAxes{i},'XLim');
+                        currentLimsY = get(obj.hSubsampledImageAxes{i},'YLim');
+                    end
                     if obj.upsampleImage{i}
                         obj.hShownImage{i} = Subsampling.subsampledImageShow(obj.imageStruct{i}, 'Parent', obj.hSubsampledImageAxes{i}, ...
                             'Channel', obj.channelToShow, 'Interpolation', obj.interpolationMode, 'ColourDisplay', obj.showChannelInColour);
@@ -426,13 +434,18 @@ classdef Subsampling < GUIs.base
                         obj.hShownImage{i} = Subsampling.subsampledImageShow(obj.imageStruct{i}, 'Parent', obj.hSubsampledImageAxes{i}, ...
                             'Channel', obj.channelToShow, 'ColourDisplay', obj.showChannelInColour, 'Upsample', false);
                     end
+                    %reapply zoom lims
+                    if saveZoomState
+                        set(obj.hSubsampledImageAxes{i}, 'XLim', currentLimsX);
+                        set(obj.hSubsampledImageAxes{i}, 'YLim', currentLimsY);
+                    end
                     set(obj.hShownImage{i}, 'ButtonDownFcn', @(source, evt)(obj.imageClick(source)));
-               end
-               obj.updatePixelCounts();
-               obj.updateSubsampleViews();
-           end
+                end
+                obj.updatePixelCounts();
+                obj.updateSubsampleViews();
+            end
            
-           obj.hSelectedBlockRectangle = cell(1,3);
-       end
+            obj.hSelectedBlockRectangle = cell(1,3);
+        end
    end
 end 
