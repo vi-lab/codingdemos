@@ -20,6 +20,7 @@ classdef Subsampling < GUIs.base
        hShownImage
        
        hSelectedBlockPanel
+       hSelectedBlockRectangle
        hSubsamplingModeImageAxes
 
        lastClickedBlockX
@@ -220,6 +221,19 @@ classdef Subsampling < GUIs.base
                         break;
                     end
                 end
+                
+                if isempty(obj.hSelectedBlockRectangle)
+                    obj.hSelectedBlockRectangle = cell(1,3);
+                end
+                for i=1:3
+                    if obj.hSelectedBlockRectangle{i}
+                        delete(obj.hSelectedBlockRectangle{i})
+                    end
+                    obj.hSelectedBlockRectangle{i} = rectangle('Parent', obj.hSubsampledImageAxes{i}, ...
+                                                                'Position', [obj.lastClickedBlockX-0.5  obj.lastClickedBlockY-0.5 4 2], ...
+                                                                'EdgeColor', [0 0 0], 'LineWidth', 1);
+                end
+                
                 obj.updateSubsampleViews();
             end               
        end
@@ -417,6 +431,8 @@ classdef Subsampling < GUIs.base
                obj.updatePixelCounts();
                obj.updateSubsampleViews();
            end
+           
+           obj.hSelectedBlockRectangle = cell(1,3);
        end
    end
 end 
