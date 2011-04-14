@@ -40,13 +40,13 @@ end
 
 %If image is a YCbCr
 if isfield(subsampled, {'y', 'cb', 'cr'}) 
-    if upsample
+    if upsample || strcmp(channel, 'all')
         reconstructionYCbCr = uint8(Subsampling.subsampledToYCbCrImage(subsampled, filter));
         if exist('block', 'var') && ~isempty(block)
             reconstructionYCbCr = reconstructionYCbCr(block(2):block(2)+block(4)-1, block(1):block(1)+block(3)-1,:);
         end
         reconstructionRGB = ycbcr2rgb(reconstructionYCbCr);
-    else
+    else    
         reconstructionYCbCr = uint8(subsampled.(channel));
         if exist('block', 'var') && ~isempty(block)        
             % downsample block dims
