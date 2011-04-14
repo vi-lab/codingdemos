@@ -5,6 +5,8 @@ classdef base < handle
    properties
        hMainWindow
        hMainToolbar
+       hToolbarPanButton
+       hToolbarZoomButton
        
        windowSize
        
@@ -60,11 +62,11 @@ classdef base < handle
                                                     'Separator','on', ...
                                                     'ClickedCallback', @(source, event)(obj.changeScreenMode(source)));
             icon = imresize(imread('+GUIs/images/icons/search_48.png','BackgroundColor',[1 1 1]), [16 16]);
-            uitoggletool(obj.hMainToolbar,'CData',icon,'TooltipString','Switch to and from zoom mode', ...
+            obj.hToolbarZoomButton = uitoggletool(obj.hMainToolbar,'CData',icon,'TooltipString','Switch to and from zoom mode', ...
                                                     'Separator','on', ...
                                                     'ClickedCallback', @(source, event)(obj.changeZoomMode(source)));
             icon = imresize(imread('+GUIs/images/icons/mouse_48.png','BackgroundColor',[1 1 1]), [16 16]);
-            uitoggletool(obj.hMainToolbar,'CData',icon,'TooltipString','Switch to and from pan mode', ...
+            obj.hToolbarPanButton = uitoggletool(obj.hMainToolbar,'CData',icon,'TooltipString','Switch to and from pan mode', ...
                                                     'ClickedCallback', @(source, event)(obj.changePanMode(source)));   
 
             icon = imresize(imread('+GUIs/images/icons/refresh_48.png','BackgroundColor',[1 1 1]), [16 16]);
@@ -147,6 +149,10 @@ classdef base < handle
         function changeZoomMode(obj, source)
             if strcmp(get(source, 'State'), 'on')
                 % on
+                if strcmp(get(obj.hToolbarPanButton, 'State'), 'on')
+                    set(obj.hToolbarPanButton, 'State', 'off');
+                    obj.changePanMode(obj.hToolbarPanButton);
+                end
                 zoom('on');
                 set(source, 'CData', imresize(imread('+GUIs/images/icons/cross_48.png','BackgroundColor',[1 1 1]), [16 16]));
             else
@@ -159,6 +165,10 @@ classdef base < handle
         function changePanMode(obj, source)
             if strcmp(get(source, 'State'), 'on')
                 % on
+                if strcmp(get(obj.hToolbarZoomButton, 'State'), 'on')
+                    set(obj.hToolbarZoomButton, 'State', 'off');
+                    obj.changeZoomMode(obj.hToolbarZoomButton);
+                end
                 pan('on');
                 set(source, 'CData', imresize(imread('+GUIs/images/icons/cross_48.png','BackgroundColor',[1 1 1]), [16 16]));
             else
