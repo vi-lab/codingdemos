@@ -61,8 +61,7 @@ switch channel
         imhandle = imshow(reconstructionRGB(:,:,1), 'Parent', ax);
     case 'cb'
         if colourDisplay
-            imToDisplay = uint8(zeros(size(reconstructionYCbCr)));
-            imToDisplay(:,:,1) = reconstructionYCbCr(:,:,2);
+            imToDisplay = uint8(ones(size(reconstructionYCbCr)).*128);
             imToDisplay(:,:,2) = reconstructionYCbCr(:,:,2);
             imhandle = imshow(ycbcr2rgb(imToDisplay), 'Parent', ax);
         else
@@ -72,8 +71,7 @@ switch channel
         imhandle = imshow(reconstructionRGB(:,:,2), 'Parent', ax);
     case 'cr'
         if colourDisplay
-            imToDisplay = uint8(zeros(size(reconstructionYCbCr)));
-            imToDisplay(:,:,1) = reconstructionYCbCr(:,:,3);
+            imToDisplay = uint8(ones(size(reconstructionYCbCr)).*128);
             imToDisplay(:,:,3) = reconstructionYCbCr(:,:,3);
             imhandle = imshow(ycbcr2rgb(imToDisplay), 'Parent', ax);
         else
