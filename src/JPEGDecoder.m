@@ -1,9 +1,25 @@
 classdef JPEGDecoder < handle
 %JPEGDECODER Summary of this class goes here
-%   Detailed explanation goes here
+%Detailed explanation goes here
 %
-% Copyright 2011, Stephen Ierodiaconou, University of Bristol.
-
+%   JPEGDecoder.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   JPEGEncoder Properties:
+%       * inputImageData - first property
+%       * imageMatrix - first property
+%
+%   JPEGEncoder Methods:
+%       * JPEGDecoder() - Constructor takes optional source parameter
+%
+%
+%   Example commands:
+%       obj = JPEGDecoder();
+%       obj.decode('Verbose', true);
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties (SetObservable)
         inputStruct

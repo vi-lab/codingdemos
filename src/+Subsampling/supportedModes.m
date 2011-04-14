@@ -1,5 +1,9 @@
 function [ modes ] = supportedModes( )
 %SUPPORTEDMODES The supported modes of the subsampling package
+%
+%   +Subsampling/supportedModes.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
 %   Subsampling modes are normally described as a triplet of values
 %   corresponding to the number of samples for chroma and luminance in each
 %   direction of a block of pixels of size 4x2. The triplet is described in
@@ -13,6 +17,11 @@ function [ modes ] = supportedModes( )
 %   
 %   The following reference provides a good introduction to this topic
 %   Ref: http://dougkerr.net/pumpkin/articles/Subsampling.pdf
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
+
 
     modes = {'4:4:4','4:4:0','4:2:2','4:2:0','4:1:1','4:1:0'};
 end

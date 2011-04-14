@@ -1,16 +1,25 @@
 classdef JPEGEncoder < handle
-%DEMOJPEGENCODER Summary of this class goes here
+%JPEGENCODER Implementation of JPEG Encoder
 %Detailed explanation goes here
-% DemoJPEGEncoder Properties:
-%   inputImageData - first property
-%   imageMatrix - first property
-% DemoJPEGEncoder Methods:
-%   DemoJPEGEncoder - Constructor takes optional source parameter
+%
+%   JPEGEncoder.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   JPEGEncoder Properties:
+%       * inputImageData - first property
+%       * imageMatrix - first property
+%
+%   JPEGEncoder Methods:
+%       * JPEGEncoder() - Constructor takes optional source parameter
 %
 %
 %   Example commands:
-%       obj = JPEGEncoder('exampleImages/lena_color_256.bmp','DoEntropyCoding', false, 'DoReconstruction', true, 'Verbose', true); 
+%       obj = JPEGEncoder('exampleImages/lena_color_256.bmp','DoEntropyCoding', false, 'DoReconstruction', true, 'Verbose', true);
 %       obj.encode('Verbose', false);
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties (SetObservable)
         input

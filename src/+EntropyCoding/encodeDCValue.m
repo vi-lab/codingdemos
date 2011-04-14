@@ -1,8 +1,18 @@
 function [ encodedLogicalBitArray ] = encodeDCValue( diffValue, huffmanTable )
 %ENCODEDCVALUE Encode a single DC value using the given Huffman Code table
 %   Detailed explanation goes here
-%      
+%
+%   +EntropyCoding/encodeDCValue.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   HELP INFO
 %   Note: maximum encoded value should not exceed 16 bits.
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
+%
+
 
 if diffValue == 0
     encodedLogicalBitArray = huffmanTable{1};

@@ -1,6 +1,10 @@
 function [ yHi yVi cbHi cbVi crHi crVi ] = modeToHorizontalAndVerticalSamplingFactors( mode )
 %MODETOHORIZONTALANDVERTICALSAMPLINGFACTOR Convert a mode string to JPEG
 %sampling factors.
+%
+%   +Subsampling/modeToHorizontalAndVerticalSamplingFactors.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
 %   Ref: CCITT Rec. T.81 (1992 E)	p. 24 A.1.1
 %
 %   The sampling factors are essentially encoded relative to the maximum
@@ -12,6 +16,10 @@ function [ yHi yVi cbHi cbVi crHi crVi ] = modeToHorizontalAndVerticalSamplingFa
 %   rows for example = y = Y(Vi/4). Since the Y channel is the same size as
 %   the original y = 100, Y = 100 therefore Vi = 4. For the chroma channels
 %   however y = 25, Y = 100, therefore Vi = 1.
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
  
 switch mode
     case '4:4:4' 

@@ -1,6 +1,15 @@
 function [ coefficients ] = decodeACZerosRunLengthValue( RS, extraMagnitudeValue )
-%UNTITLED1 Summary of this function goes here
+%DECODEACZEROSRUNLENGTHVALUE Summary of this function goes here
 %   Detailed explanation goes here
+%
+%   +EntropyCoding/decodeACZerosRunLengthValue.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   HELP INFO
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 S_magnitudeCategory = bitand(RS, 15);
 R_zerosRunLength = bitshift(RS, -4);

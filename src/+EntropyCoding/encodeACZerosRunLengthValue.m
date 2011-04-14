@@ -1,7 +1,15 @@
 function [ encodedLogicalBitArray ] = encodeACZerosRunLengthValue( runLength, value, huffmanTable )
 %ENCODEACZEROSRUNLENGTHVALUE Summary of this function goes here
 %   Detailed explanation goes here
-
+%
+%   +EntropyCoding/encodeACZerosRunLengthValue.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   HELP INFO
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 % Create actual 'RS' values
 % for each nonzero coefficient create the 'RS' value which is

@@ -1,8 +1,17 @@
 function [ table ] = LuminanceACHuffmanSymbolValuesPerCode( )
 %LuminanceACHuffmanSymbolValuesPerCode The HUFFVALS array for the luminance AC Huffman tables
-%   The HUFFVALS array for the luminance AC Huffman tables as recommended by
-%   the standard.
+%
+%   +EntropyCoding/ChromaACHuffmanCodeCountPerCodeLength.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
 %   Ref: CCITT Rec. T.81 (1992 E) p. 158, Table K.5
+%
+%   The HUFFVALS array for the luminance AC Huffman tables as recommended
+%   by the standard.
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 %{
 In Hex

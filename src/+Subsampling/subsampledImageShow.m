@@ -1,18 +1,27 @@
 function imhandle = subsampledImageShow( subsampled, varargin )
-%subsampledImageShow Display the given subsampled image on the current or
+%SUBSAMPLEDIMAGESHOW Display the given subsampled image on the current or
 %given axes.
+%
+%   +Subsampling/subsampledImageShow.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
 %   This function draws the given subsampled image struct on to the current
 %   or given 'parentAxes'. 
 %   Optional Parameters: 
-%       'Parent' : axes object to draw the object on to.
-%       'Channel' : The colour channel to draw, e.g. 'y' or 'cb'
-%       'Block' : A vector [x_position y_position width height] describing
+%       * 'Parent' : axes object to draw the object on to.
+%       * 'Channel' : The colour channel to draw, e.g. 'y' or 'cb'
+%       * 'Block' : A vector [x_position y_position width height] describing
 %       a subblock of the image to draw. Note that these are relative to
 %       upsampled size for subsampled channels!
-%       'Interpolation' : The interpolation mode as described by 'imresize'
-%       'Upsample' : If false the channel is not resized. (only valid with
+%       * 'Interpolation' : The interpolation mode as described by 'imresize'
+%       * 'Upsample' : If false the channel is not resized. (only valid with
 %       Channel, also if false ColourDisplay is ignored)
-%       'ColourDisplay' : Show channel as colour image instead of greyscale
+%       * 'ColourDisplay' : Show channel as colour image instead of greyscale
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
+
 
 % Default values.
 filter = 'bilinear';
