@@ -346,26 +346,8 @@ classdef Subsampling < GUIs.base
         function toggleShowImageWithUpsampling(obj, source)
             for i=1:length(obj.hShowChannelUpsampledCheckBox)
                 if source == obj.hShowChannelUpsampledCheckBox{i}
-                    if get(obj.hShowChannelUpsampledCheckBox{i}, 'Value')
-
-                        obj.upsampleImage{i} = true;
-
-                        %get(obj.hSubsampledImageAxes{i}, 'XLim')
-                        %get(obj.hSubsampledImageAxes{i}, 'YLim')
-                        %set(obj.hSubsampledImageAxes{i}, 'XLimMode', 'auto');
-
-                        obj.updateAxes();
-                    else
-
-                        obj.upsampleImage{i} = false;
-                        obj.updateAxes();
-                        % update the settings for the axis
-                        %get(obj.hSubsampledImageAxes{i}, 'XLim')
-                        if ~isempty(obj.inputMatrix)
-                            set(obj.hSubsampledImageAxes{i}, 'XLimMode', 'manual', 'YLimMode', 'manual', 'XLim', [1 size(obj.inputMatrix, 2)], 'YLim', [1 size(obj.inputMatrix, 1)]);
-                            axis(obj.hSubsampledImageAxes{i}, 'image');
-                        end
-                    end
+                    obj.upsampleImage{i} = get(obj.hShowChannelUpsampledCheckBox{i}, 'Value');
+                    obj.updateAxes();
                     break;
                 end
             end
