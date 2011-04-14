@@ -11,8 +11,6 @@ classdef JPEGEncoder < handle
 %   Example commands:
 %       obj = JPEGEncoder('exampleImages/lena_color_256.bmp','DoEntropyCoding', false, 'DoReconstruction', true, 'Verbose', true); 
 %       obj.encode('Verbose', false);
-%
-% Copyright 2011, Stephen Ierodiaconou, University of Bristol.
 
     properties (SetObservable)
         input
@@ -60,7 +58,9 @@ classdef JPEGEncoder < handle
         encodedDCCellArray
         encodedACCellArray
         
-        reconstructQuantisedCoefficients
+        deQuantisedCoefficients
+        inverseTransformedData
+        inverseTransformedAndShiftedData
         reconstructCoefficients
 
         reconstruction
@@ -337,17 +337,17 @@ classdef JPEGEncoder < handle
             % the result
             if obj.doReconstruction
 
-                obj.reconstructQuantisedCoefficients = cellfun(@(channel, table)(...
+                obj.deQuantisedCoefficients = cellfun(@(channel, table)(...
                                             blkproc(channel, [8 8], @(block)TransformCoding.dequantisationWithTable(block, table)) ...
                                         ), obj.quantisedCoefficients, qTables, 'UniformOutput', false);
 
-                inverseTransformed = cellfun(@(channel)(...
+                obj.inverseTransformedData = cellfun(@(channel)(...
                                                 blkproc(channel, [8 8], methods.IDCT)...
-                                        ), obj.reconstructQuantisedCoefficients, 'UniformOutput', false);
+                                        ), obj.deQuantisedCoefficients, 'UniformOutput', false);
 
-                inverseTransformedShifted = cellfun(@(channel)(uint8(double(channel) + 128)), inverseTransformed, 'UniformOutput', false);
+                obj.inverseTransformedAndShiftedData = cellfun(@(channel)(uint8(double(channel) + 128)), obj.inverseTransformedData, 'UniformOutput', false);
 
-                structImage = cell2struct(inverseTransformedShifted, {'y', 'cb', 'cr'}, 2);
+                structImage = cell2struct(obj.inverseTransformedAndShiftedData, {'y', 'cb', 'cr'}, 2);
                 structImage.mode = obj.chromaSamplingMode;
                 obj.reconstruction = structImage;
 
