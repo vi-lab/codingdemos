@@ -50,8 +50,8 @@ if isfield(subsampled, {'y', 'cb', 'cr'})
         reconstructionYCbCr = uint8(subsampled.(channel));
         if exist('block', 'var') && ~isempty(block)        
             % downsample block dims
-            rd = size(subsampled.y,1) / size(reconstructionYCbCr,1);
-            cd = size(subsampled.y,2) / size(reconstructionYCbCr,2);
+            rd = size(subsampled.y, 1) / size(reconstructionYCbCr, 1);
+            cd = size(subsampled.y, 2) / size(reconstructionYCbCr, 2);
             block = [(block(1)/cd) (block(2)/rd) (block(3)/cd) (block(4)/rd)];
             reconstructionYCbCr = reconstructionYCbCr(block(2):block(2)+block(4)-1, block(1):block(1)+block(3)-1,:);
         end
@@ -80,10 +80,12 @@ switch channel
         if colourDisplay
             imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3).*128);
             imToDisplay(:,:,2) = chanData;
-            imhandle = imshow(ycbcr2rgb(imToDisplay), 'Parent', ax);
-        else
-            imhandle = imshow(a, 'Parent', ax);
+            chanData = ycbcr2rgb(imToDisplay);
         end
+        if ~upsample
+            chanData = fillInImage(chanData, size(subsampled.y));
+        end
+        imhandle = imshow(chanData, 'Parent', ax);
     case 'cr'
         if upsample
             chanData = reconstructionYCbCr(:,:,3);
@@ -93,10 +95,18 @@ switch channel
         if colourDisplay
             imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3).*128);
             imToDisplay(:,:,3) = chanData;
-            imhandle = imshow(ycbcr2rgb(imToDisplay), 'Parent', ax);
-        else
-            imhandle = imshow(chanData, 'Parent', ax);
+            chanData = ycbcr2rgb(imToDisplay);
         end
+        if ~upsample
+            chanData = fillInImage(chanData, size(subsampled.y));
+        end
+        imhandle = imshow(chanData, 'Parent', ax);
 end
 
+end
+
+function chanData = fillInImage(channel, szY)
+    [r c d] = size(channel);
+    chanData = horzcat(channel, (ones(r, szY(2)-c, d).*204));
+    chanData = vertcat(chanData, (ones(szY(1)-r, szY(2), d).*204));
 end
