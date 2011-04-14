@@ -23,11 +23,11 @@ classdef JPEGEncoder < handle
 
     properties (SetObservable)
         input
-        
+
         qualityFactor
         chromaSamplingMode
     end
-    
+
     properties (SetObservable, SetAccess='private')
 
         % If true the encoder will generate extra state to create a
@@ -46,16 +46,16 @@ classdef JPEGEncoder < handle
 
         % Use MATLAB built-in or toolbox methods of lib/ versions
         useBuiltInMethods
-        
+
         verbose
-        
+
         imageMatrix
         imageStruct
-        
+
         basisCoefficientMap
         luminanceScaledQuantisationTable
         chromaScaledQuantisationTable
-        
+
         % Getters for these to parse data into format that is more readable
         % ???????
         coefficients
@@ -66,7 +66,7 @@ classdef JPEGEncoder < handle
         differentialDCCoefficients
         encodedDCCellArray
         encodedACCellArray
-        
+
         deQuantisedCoefficients
         inverseTransformedData
         inverseTransformedAndShiftedData
@@ -83,7 +83,7 @@ classdef JPEGEncoder < handle
                 obj.input = source;
             end
             obj.setParameterDefaultValues;
-            
+
             % Can set parameters on encoder
             if ~isempty(varargin)
                 obj.setCodingParameters(varargin{:});
@@ -106,23 +106,23 @@ classdef JPEGEncoder < handle
                     obj.imageMatrix = data;
                     obj.imageStruct = struct('y', obj.imageMatrix(:,:,1),'cb', obj.imageMatrix(:,:,2),'cr', obj.imageMatrix(:,:,3), 'mode', '4:4:4');
                 else
-                    throw(MException('JPEGEncoder:input', 'The input image data must be either a struct with y, cb and cr fields corresponding to the 3 channels, a string file name to read, or a ycbcr image matrix.')); 
+                    throw(MException('JPEGEncoder:input', 'The input image data must be either a struct with y, cb and cr fields corresponding to the 3 channels, a string file name to read, or a ycbcr image matrix.'));
                 end
             end
         end
-        
+
         function set.qualityFactor(obj, data)
             obj.qualityFactor = data;
-            
+
             % TODO: RESET ALL OTHER DATA WHICH IS NOW INVALID
         end
-       
+
         function set.chromaSamplingMode(obj, data)
             obj.chromaSamplingMode = data;
-            
+
             % TODO: RESET ALL OTHER DATA WHICH IS NOW INVALID
         end
-        
+
         function setParameterDefaultValues(obj)
             obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', ...
                 'DoEntropyCoding', true, 'DoReconstruction', true, 'DoRunLengthCoding', true, 'DoReordering', true, 'DoDCDifferentials', true, ...
@@ -130,19 +130,19 @@ classdef JPEGEncoder < handle
         end
 
         function setCodingParameters(obj, varargin)
-            for k=1:2:size(varargin,2) 
+            for k=1:2:size(varargin,2)
                 switch lower(varargin{k})
                     case 'quality'
                         if isa(varargin{k+1}, 'numeric')
                             obj.qualityFactor = varargin{k+1};
                         else
-                            throw(MException('JPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.')); 
+                            throw(MException('JPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.'));
                         end
                     case 'subsampling'
                         if isa(varargin{k+1}, 'char')
                             obj.chromaSamplingMode = varargin{k+1};
                         else
-                            throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.')); 
+                            throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.'));
                         end
                     case 'dostagesafterquantisation'
                         c = varargin{k+1};
@@ -168,11 +168,11 @@ classdef JPEGEncoder < handle
                         obj.basisCoefficientMap = varargin{k+1};
                 end
             end
-            
+
             % ************************************************************
             % TODO throw exception on invalid combos
         end
-        
+
         function reset(obj)
             % Reset everything thus clearing up memory as well
             % Use introspection to get all properties on class and reset
@@ -181,15 +181,15 @@ classdef JPEGEncoder < handle
             for i=1:length(metaClassObject.Properties)
                 obj.(metaClassObject.Properties{i}.Name) = [];
             end
-            
+
             obj.setParameterDefaultValues;
         end
-        
+
         function success = encodeToFile(obj, fileName, varargin)
             % ------------------------------------------
             % Encode Baseline DCT JPEG and write to file
             % ------------------------------------------
-            % Refs: 
+            % Refs:
             %
             % Parameters:
             %
@@ -218,7 +218,7 @@ classdef JPEGEncoder < handle
             % the function will be an empty array and any prior state of
             % the entropy coding process will be cleared.
             %
-            % Refs: 
+            % Refs:
             % Baseline process: CCITT Rec. T.81 (1992 E) p.87
             %
             % Parameters:
@@ -227,9 +227,9 @@ classdef JPEGEncoder < handle
             %   stream: (doEntropyCoding == true) : a logical array of bits
             %               representing the final coded file.
             %           (doEntropyCoding == false) : an empty array
-            
+
             obj.setCodingParameters(varargin{:});
-            
+
             if obj.useBuiltInMethods
                 methods = struct('DCT', @dct2, 'IDCT', @idct2);
             else
@@ -240,18 +240,18 @@ classdef JPEGEncoder < handle
             if obj.isEnabledStage.entropyCoding; isCoding = 'on'; else isCoding = 'off'; end
             if obj.doReconstruction; isRec = 'on'; else isRec = 'off'; end
             if obj.verbose; disp(['Start encoding: (entropy coding: ' isCoding ', reconstruction: ' isRec ') -- Quality Factor: ' num2str(obj.qualityFactor) ', chroma sampling mode: ' obj.chromaSamplingMode]); end
-            
+
             % If subsampling is necessary make sure it has been performed
             if isa(obj.imageStruct, 'struct')
-                % For each colour channel 
+                % For each colour channel
                 if ~isfield(obj.imageStruct, 'y')
-                    throw(MException('JPEGEncoder:encode', 'No ''y'' channel was found on the source image.')); 
+                    throw(MException('JPEGEncoder:encode', 'No ''y'' channel was found on the source image.'));
                 end
                 if ~isfield(obj.imageStruct, 'cb')
-                    throw(MException('JPEGEncoder:encode', 'No ''cb'' channel was found on the source image.')); 
+                    throw(MException('JPEGEncoder:encode', 'No ''cb'' channel was found on the source image.'));
                 end
                 if ~isfield(obj.imageStruct, 'cr')
-                    throw(MException('JPEGEncoder:encode', 'No ''cr'' channel was found on the source image.')); 
+                    throw(MException('JPEGEncoder:encode', 'No ''cr'' channel was found on the source image.'));
                 end
 
                 if isfield(obj.imageStruct, 'mode')
@@ -263,7 +263,7 @@ classdef JPEGEncoder < handle
                     end
                 else
                     % struct but no mode
-                    throw(MException('JPEGEncoder:encode', 'No ''mode'' was found on the source image.')); 
+                    throw(MException('JPEGEncoder:encode', 'No ''mode'' was found on the source image.'));
                 end
             else
                 % no struct so create from matrix
@@ -272,7 +272,7 @@ classdef JPEGEncoder < handle
 
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
-      
+
             % Perform the data level shift. This is part of the JPEG
             % standard. It helps reduce the magnitude of the DC coefficient
             % so it is in the order of magnitude of the data type used for
@@ -314,7 +314,7 @@ classdef JPEGEncoder < handle
                                     blkproc(coeffs, [8 8], @TransformCoding.coefficientOrdering)...
                                 ), obj.quantisedCoefficients, 'UniformOutput', false);
             end
-            
+
             % Zeros-run-length code the coefficients. This is efficient
             % after zigzag ordering as many zeros will have been created in
             % the low energy coefficients which are now together towards
@@ -333,7 +333,7 @@ classdef JPEGEncoder < handle
                 obj.DCCoefficients = cellfun(@(coeffs)(...
                                     blkproc(coeffs, [1 64], @TransformCoding.returnDCCoefficient)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
-              
+
                 % Differentially code the DC value
                 obj.differentialDCCoefficients = cellfun(@(coeffs)(...
                                     TransformCoding.differentiallyCodeDC(coeffs)...
@@ -377,7 +377,7 @@ classdef JPEGEncoder < handle
                 symbolValues    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
                 huffmanCodesForDC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
 
-                % The Chroma DC Huffman code table for the 12 categories 
+                % The Chroma DC Huffman code table for the 12 categories
                 codeLengths     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
                 symbolValues    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
                 huffmanCodesForDC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
@@ -416,7 +416,7 @@ classdef JPEGEncoder < handle
                 stream = [];
             end
         end
-        
+
         % Helper Methods
         % TODO : make this a package function
         function levelShiftInputImage(obj)
@@ -431,7 +431,7 @@ classdef JPEGEncoder < handle
             % Ref:
             %   CCITT Rec. T.81 (1992 E) p.26
             %   http://compgroups.net/comp.compression/Level-Shift-in-JPEG-optional-or-mandatory
-            
+
             %%%%% After a non-differential frame decoding process computes
             %%%%% the IDCT and produces a block of reconstructed image samples, an inverse level shift shall restore the samples to the unsigned representation by adding 2P ? 1 and clamping the results to the range 0 to 2P ? 1.
             if isfield(obj.imageStruct, {'y', 'cb', 'cr'})
@@ -449,6 +449,7 @@ classdef JPEGEncoder < handle
             flatCoeffs = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{channelID}.', [1 numel(obj.zerosRunLengthCodedOrderedACCoefficients{channelID})]);
             blockStartIndexes = 1:126:length(flatCoeffs);
             encodedArray = cell(1, length(blockStartIndexes));
+            % TODO: turn into private method and arrayfun
             for i = 1:length(blockStartIndexes)
                 % For each block (raster order)
                 idx = blockStartIndexes(i);
@@ -463,14 +464,14 @@ classdef JPEGEncoder < handle
                                                 'UniformOutput', false);
             end
         end
-        
+
         function huffmanCodesCellArray = createHuffmanCodes(obj, bits, huffvals)
             [huffsize, lastk] = EntropyCoding.generateTableOfHuffmanCodeSizes(bits);
             huffcode = EntropyCoding.generateTableOfHuffmanCodes(huffsize);
             [ehufco, ehufsi] = EntropyCoding.generateEncodingProcedureCodeTables( huffvals, huffcode, huffsize, lastk );
             huffmanCodesCellArray = arrayfun(@Utilities.decimalToLogical, ehufco, ehufsi, 'UniformOutput', false);
         end
-        
+
         function stream = createBitStream(obj)
             % ----------------
             % Create bitstream
@@ -530,7 +531,7 @@ classdef JPEGEncoder < handle
             % 63, Ah = 0 and Al = 0
             %
             % An [ECS] (entropy coded segment) is as follows:
-            % 1) 
+            % 1)
             %
             % The [TABLES] for quantisation and Huffman coding are as
             % follows:
@@ -538,7 +539,7 @@ classdef JPEGEncoder < handle
             %   1) Define Quantisation Table marker (DQT)
             %   2) Segment length (Lq, 2 bytes) followed, for each table to
             %      be specified, by: 1 packed byte where the high four bits
-            %      are the Precision of entries, (0 for 8 bit, 1 for 
+            %      are the Precision of entries, (0 for 8 bit, 1 for
             %      16bit) and the low 4 bits are the ID of the table
             %      (Pq:Tq, 1 byte), followed by the 64 quantisation table
             %      entries in zig-zag order (64 bytes (or 128 if 16bit Pq))
@@ -558,29 +559,29 @@ classdef JPEGEncoder < handle
             % Since a number of segments are not used in the implementation
             % they are not discussed further. Please refer to the standards
             % documentation for more. Markers: DNL, DRI, RST, COM, APP ETC
-            
+
             % Ref: CCITT Rec. T.81 (1992 E)	p. 32
             % SOI : Marks start of a JPEG image
             markerStartOfImage          = Utilities.hexToShort('FFD8');
             % EOI : Marks the end of the JPEG file
             markerEndOfImage            = Utilities.hexToShort('FFD9');
-            
+
             frameHeader = obj.createBitStreamForFrameHeader();
             quantisationTables = obj.createBitStreamForQuantisationTables();
             huffmanTables = obj.createBitStreamForHuffmanTables();
 
             % TODO: this needs to be modified to support single channel
             % images
-            
+
             scanHeaderY = obj.createBitStreamForScanHeaderForSingleChannel(1);
             entropyCodedSegmentY = obj.createBitStreamForEntropyCodedDataForSingleChannel(1);
-            
+
             scanHeaderCb = obj.createBitStreamForScanHeaderForSingleChannel(2);
             entropyCodedSegmentCb = obj.createBitStreamForEntropyCodedDataForSingleChannel(2);
-            
+
             scanHeaderCr = obj.createBitStreamForScanHeaderForSingleChannel(3);
             entropyCodedSegmentCr = obj.createBitStreamForEntropyCodedDataForSingleChannel(3);
-            
+
             stream = cat(2, markerStartOfImage, ... % SOI
                 quantisationTables, ... % Tables for this image
                 huffmanTables, ...
@@ -595,12 +596,12 @@ classdef JPEGEncoder < handle
 
             obj.output = stream;
         end
-        
+
         function bits = createBitStreamForEntropyCodedDataForSingleChannel(obj, channelID)
             % -----------
             % Entropy Coded Segment
             % -----------
-            
+
             bits = logical([]);
 
             for i=1:length(obj.encodedDCCellArray{channelID})
@@ -611,20 +612,20 @@ classdef JPEGEncoder < handle
             bits = Utilities.byteStuffing(bits, 8);
 
         end
-        
+
         function bits = createBitStreamForScanHeaderForSingleChannel(obj, channelID)
             % -----------
             % Scan Header
             % -----------
             % Ref: CCITT Rec. T.81 (1992 E)	p.37
-            
+
             % From real JPEG image using 4:2:0
             % FF DA 00 0C 03 01 00 02 11 03 11 00 3F 00
             % SOS, Ls(12), Ns(3), Cs1(1=Y), Td1(0):Ta1(0), Cs2(2=Cb), Td2(1):Ta2(1), Cs3(3=Cr), Td3(1):Ta3(1), Ss(0), Se(3F), Ah(0):Al(0)
-            
+
             % SOS marker
             markerStartOfScan   = Utilities.hexToShort('FFDA');
-            
+
             % Ls    (2 bytes)
             segmentLength       = Utilities.decimalToShort(6 + (2*1));
             % Ns    (1 byte)
@@ -641,7 +642,7 @@ classdef JPEGEncoder < handle
             endPredictorID      = Utilities.decimalToByte(63);
             % Ah:Al (1 byte)
             successiveApproximationBitPosition = Utilities.decimalNibblesToByte(0, 0);
-            
+
             bits = cat(2, ...
                 markerStartOfScan, ...
                 segmentLength, ...
@@ -653,7 +654,7 @@ classdef JPEGEncoder < handle
                 successiveApproximationBitPosition ...
                 );
         end
-        
+
         function bits = createBitStreamForFrameHeader(obj)
             % -------------------
             % Frame Header Format
@@ -661,22 +662,22 @@ classdef JPEGEncoder < handle
             % Ref: CCITT Rec. T.81 (1992 E)	p. 35
             % and
             % http://en.wikibooks.org/wiki/JPEG_-_Idea_and_Practice/The_header_part
-            
+
             % SOF0 : Marks that this is a Baseline DCT mode JPEG
             markerStartOfFrame_Mode0    = Utilities.hexToShort('FFC0');
-            
+
             % Here is a header from a real JPEG using 4:2:2
             % FF C0, 00 11, 08, 01 90, 02 80, 03, 01, 21, 00, 02, 11, 01, 03, 11, 01
             % Using the notation of the T.81:
             % SOF0, Lf(17), P(8), Y(400), X(640), Nf(3), Ci(1=Y), Hi(2):Vi(1), Tqi(0), Ci(2=Cb), Hi(1):Vi(1), Tqi(1), Ci(3=Cr), Hi(1):Vi(1), Tqi(1)
             % followed by the huffman tables
-            
+
             % From a real JPEG using 4:4:4 then Hi = 1 Vi = 1 for all
             % From a real JPEG using 4:2:0 then Hi = 2 Vi = 2 for Y and 1,1
             % for chroma. For a more detailed explaination see the comments
             % in the following method:
             [yHi yVi cbHi cbVi crHi crVi] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct.mode);
-            
+
             % Lf    (2 bytes)
             segmentSOFLength            = Utilities.decimalToShort(8 + 3 * (3));%dec2bin(8 + 3 * (3), 16); % includes the 2 bytes needed for the length itself
             % P     (1 byte)
@@ -687,15 +688,15 @@ classdef JPEGEncoder < handle
             imageWidth                  = Utilities.decimalToShort(size(obj.imageStruct.y,2));%dec2bin(size(obj.imageStruct.y,2),16);
             % Nf    (1 byte)
             numberOfChannels            = Utilities.decimalToByte(3);%dec2bin(3, 8);
-            
+
             % Ci1   (1 byte)
             yComponentIdentifier        = Utilities.decimalToByte(1);%dec2bin(1,8);
             % Hi1   (1 nibble)
             % Vi1   (1 nibble)
             yHorizontalVerticalSamplingFactor       = Utilities.decimalNibblesToByte(yHi, yVi);
             % Tqi1  (1 byte)
-            yQuantisationTableDestinationSelector   = Utilities.decimalToByte(0);%dec2bin(0,8); %Table0 for Y 
-            
+            yQuantisationTableDestinationSelector   = Utilities.decimalToByte(0);%dec2bin(0,8); %Table0 for Y
+
             % Ci2   (1 byte)
             cbComponentIdentifier       = Utilities.decimalToByte(2);%dec2bin(2,8);
             % Hi2   (1 nibble)
@@ -703,7 +704,7 @@ classdef JPEGEncoder < handle
             cbHorizontalVerticalSamplingFactor      = Utilities.decimalNibblesToByte(cbHi, cbVi);
             % Tqi2  (1 byte)
             cbQuantisationTableDestinationSelector  = Utilities.decimalToByte(1);%dec2bin(1,8); %Table1 for chroma
-            
+
             % Ci3   (1 byte)
             crComponentIdentifier       = Utilities.decimalToByte(3);%dec2bin(3,8);
             % Hi3   (1 nibble)
@@ -728,24 +729,24 @@ classdef JPEGEncoder < handle
                 crHorizontalVerticalSamplingFactor, ...
                 crQuantisationTableDestinationSelector);
         end
-        
+
         function bits = createBitStreamForQuantisationTables(obj)
             % --------------------------
             % Quantisation Table entries
             % --------------------------
             % Ref: CCITT Rec. T.81 (1992 E)	p.39
-            % 
-            % TODO MOVE DOCS HERE FROM THE createBitStream method! 
+            %
+            % TODO MOVE DOCS HERE FROM THE createBitStream method!
             %
             % Note: This method encodes 2 quantisation tables, one for
             % luminance channels and one for chroma.
-            
+
             % DQT
             markerDefineQuantisationTable   = Utilities.hexToShort('FFDB');
-            
+
             % Lq
             segmentLength                   = Utilities.decimalToShort(2 + (2*65)); % 2 tables of 65 bytes each
-            
+
             % Y Table
             % Pq:Tq
             luminanceTablePrecisionAndID    = Utilities.decimalNibblesToByte(0, 0); % 8 bit, table 0
@@ -755,7 +756,7 @@ classdef JPEGEncoder < handle
             luminanceTableEntries           = cell2mat( arrayfun(@Utilities.decimalToByte, ...
                                                 TransformCoding.coefficientOrdering( ...
                                                     obj.luminanceScaledQuantisationTable), 'UniformOutput', false));
-            
+
             % Chroma Table
             % Pq:Tq
             chromaTablePrecisionAndID       = Utilities.decimalNibblesToByte(0, 1); % 8 bit, table 1
@@ -763,7 +764,7 @@ classdef JPEGEncoder < handle
             chromaTableEntries              = cell2mat( arrayfun(@Utilities.decimalToByte, ...
                                                 TransformCoding.coefficientOrdering( ...
                                                     obj.chromaScaledQuantisationTable), 'UniformOutput', false));
-            
+
             bits = cat(2, ...
                 markerDefineQuantisationTable, ...
                 segmentLength, ...
@@ -779,9 +780,9 @@ classdef JPEGEncoder < handle
             % Huffman Table entries
             % --------------------------
             % Ref: CCITT Rec. T.81 (1992 E)	p.40
-            
+
             % 4 TABLES
-            
+
             % Define Huffman Table (DHT)
             markerDefineHuffmanTable    = Utilities.hexToShort('FFC4');
 
@@ -791,44 +792,52 @@ classdef JPEGEncoder < handle
                                             (17 + length(EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode)) + ...
                                             (17 + length(EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode)) + ...
                                             (17 + length(EntropyCoding.ChromaACHuffmanSymbolValuesPerCode)));
-            
+
             % Per table:
             % Luminance (ID 0) DC
             % Tc:Th
             luminanceTableDCTypeAndID    = Utilities.decimalNibblesToByte(0, 0);
-            
-            % Li 
-            luminanceTableDCLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+
+            % Li
+            luminanceTableDCLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte,...
+                                                    EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
             % Vi,j
-            luminanceTableDCValues      = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
-            
+            luminanceTableDCValues      = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+
             % AC
             % Tc:Th
             luminanceTableACTypeAndID    = Utilities.decimalNibblesToByte(1, 0);
-            
-            % Li 
-            luminanceTableACLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
-            % Vi,j
-            luminanceTableACValues      = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
 
-            % Chroma (ID 1) DC 
+            % Li
+            luminanceTableACLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+            % Vi,j
+            luminanceTableACValues      = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+
+            % Chroma (ID 1) DC
             % Tc:Th
             chromaTableDCTypeAndID      = Utilities.decimalNibblesToByte(0, 1);
-            
-            % Li 
-            chromaTableDCLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+
+            % Li
+            chromaTableDCLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
             % Vi,j
-            chromaTableDCValues         = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
-            
+            chromaTableDCValues         = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+
             % AC
             % Tc:Th
             chromaTableACTypeAndID      = Utilities.decimalNibblesToByte(1, 1);
-            
-            % Li 
-            chromaTableACLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+
+            % Li
+            chromaTableACLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
             % Vi,j
-            chromaTableACValues         = cell2mat( arrayfun(@Utilities.decimalToByte, EntropyCoding.ChromaACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
-            
+            chromaTableACValues         = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    EntropyCoding.ChromaACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+
             bits = cat(2, ...
                 markerDefineHuffmanTable, ...
                 segmentLength, ...
@@ -846,6 +855,5 @@ classdef JPEGEncoder < handle
                 chromaTableACValues ...
                 );
         end
-
     end
-end 
+end

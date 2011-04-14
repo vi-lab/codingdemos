@@ -9,6 +9,7 @@ end
 stuffedArray = array;
 len = length(stuffedArray);
 
+% TODO: Get rid of for loop, except data length grows so keep in mind
 for i=1:byteLength:len
     values = stuffedArray(i:i + byteLength - 1);
 

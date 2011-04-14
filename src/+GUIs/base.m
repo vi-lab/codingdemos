@@ -154,7 +154,7 @@ classdef base < handle
         
         function changeInput(obj, source)
            files = get(source, 'String');
-           fileName = fullfile('exampleImages', files{get(source, 'Value')});
+           fileName = fullfile('../examples', files{get(source, 'Value')});
            imageRGB = imread(fileName);
            
             if isempty(imageRGB)

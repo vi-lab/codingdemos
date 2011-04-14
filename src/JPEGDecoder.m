@@ -24,54 +24,54 @@ classdef JPEGDecoder < handle
     properties (SetObservable)
         inputStruct
     end
-    
+
     properties (SetObservable, SetAccess='private')
         verbose = false;
-        
+
         chromaSamplingMode
         outputImageSize
         numberOfChannels
-        
-        
+
+
         componentIdentifier
         horizontalSamplingFactor
         verticalSamplingFactor
         quantisationTableDestinationSelector
-        
+
         componentSizeInBlocks
-        
-        % TODO : REFACTOR NAMING 
-        
-        
+
+        % TODO : REFACTOR NAMING
+
+
         % Quantisation tables cell array
         quantisationTables
-        
+
         % BITS and HUFVALS arrays
         huffmanACCodeCountPerCodeLength
         huffmanACSymbolValuesPerCode
         huffmanDCCodeCountPerCodeLength
         huffmanDCSymbolValuesPerCode
-        
+
         % HUFFCODE arrays
         huffcodeForDCCellArray
         huffcodeForACCellArray
         % Huffman code tables
         huffmanCodesForDCCellArray
         huffmanCodesForACCellArray
-        
+
         % Scan segments - channels of the image
         scanSegments
-       
+
         % DC Category and magnitude bits
         differentiallyCodedDCCoefficient
         % RS values for ZRLC from entropy decode
         zerosRunLengthCodedOrderedACCoefficients
-        
-        
+
+
         % Output image data
         outputImageMatrix
         outputImageStruct
-        
+
     end
 
     methods
@@ -90,54 +90,54 @@ classdef JPEGDecoder < handle
                                         'numericData', Utilities.readBinaryFileToArray(data, 'numeric'));
             elseif isa(data, 'logical')
                 obj.inputStruct = struct('binaryData', data);
-            elseif isa(data, 'struct')   %%%%%%%%%%%%%%%% STRUCT DATA FROM encoder, all data 
+            elseif isa(data, 'struct')   %%%%%%%%%%%%%%%% STRUCT DATA FROM encoder, all data
                 %%%%%%obj.data = data;
             else
-                throw(MException('JPEGDecoder:input', 'The input image data must be either a string file name to read, or a bistream in the form of a logical matrix of bits .')); 
+                throw(MException('JPEGDecoder:input', 'The input image data must be either a string file name to read, or a bistream in the form of a logical matrix of bits .'));
             end
         end
-       
+
         % TODO: Should take varargs so that you can pass in what to do
         function outputImage = decode(obj, verbose)
-            outputImage = [];            
+            outputImage = [];
             if exist('verbose', 'var')
                 obj.verbose = verbose;
             end
-            
+
             % First the input data is decoded. This involves finding JPEG
             % segment markers to identify each region (quantisation tables,
             % huffman tables, entropy coded blocks etc) and then decoding
-            % them and extracting parameters. 
+            % them and extracting parameters.
             if isfield(obj.inputStruct, 'binaryData')
-               obj.decodeFromLogicalArray(); 
+               obj.decodeFromLogicalArray();
             elseif isfield(obj.inputStruct, 'numericData')
-               obj.decodeFromNumericArray(); 
+               obj.decodeFromNumericArray();
             else
                 %%%%%%%% STRUCT FROM ENCODER, only do whats needed, (prob
                 %%%%%%%% no entropy decode)
-                
+
             end
-            
+
             % For each channel
             for c=1:obj.numberOfChannels
-                
+
                 channelID = obj.componentIdentifier(c);
-                
+
                 if obj.verbose
                     disp(['Reconstructing channel ' num2str(channelID) '.']);
                 end
-                
+
                 % Reconstruct DC diff values by sign extending.
                 blocksDCDiffValues{c} = arrayfun(@(cat, mag)(EntropyCoding.extendSignBitOfDecodedValue(mag, cat)), obj.differentiallyCodedDCCoefficient{c}(:,1).', obj.differentiallyCodedDCCoefficient{c}(:,2).');
-                
+
                 % These decoded values are differential so cumulative sum
                 % them to get original values
                 blocksDCValues{c} = cumsum(blocksDCDiffValues{c});
-                
+
                 % Reconstruct the AC coefficients by decoding the run
                 % lengths and then sign extending to recover original
                 % coefficient values.
-                
+
                 % This is performed by calling for each block cell
                 % of AC ZRLC coefficients decodeACZerosRunLengthValue().
                 % This returns the decoded run and value in a cell for each
@@ -146,9 +146,9 @@ classdef JPEGDecoder < handle
                 % in column ordeR) into a vector and this is then extended
                 % with zeros to get the whole 63 coefficients
                 %blocksACCoefficients{c} = cellfun(@(block)(...
-                %           arrayfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ... 
+                %           arrayfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
                 %    ), obj.zerosRunLengthCodedOrderedACCoefficients{c}, 'UniformOutput', false);
-                
+
                 blocksACCoefficients{c} = cellfun(@(block)(...
                         Utilities.padArray( ...
                             cell2mat(... %sprintf([num2str(bitand(RS, 15)) ' ' num2str(bitshift(RS, -4))])
@@ -160,19 +160,19 @@ classdef JPEGDecoder < handle
                 % Add DC values
                 blocksWithACAndDCCoefficientsReordered{c} = arrayfun(@(dc, ac)([dc ac{1}]), ...
                                                                     blocksDCValues{c}, blocksACCoefficients{c}, 'UniformOutput', false);
-                
+
                 % Dezigzag coeffs
                 blocksWithACCoefficientsReordered{c} = cellfun( @(coeffs)(TransformCoding.coefficientOrdering(coeffs, 'dezigzag')), ...
                                                                 blocksWithACAndDCCoefficientsReordered{c},'UniformOutput',false);
-                
+
                 % Reshape
                 d = floor(sqrt(length(blocksWithACCoefficientsReordered{c})));
                 quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, d, d).');
-                
+
                 % Dequantise
                 dequantisedChannel{c} = blkproc(quantisedChannel{c}, [8 8], ...
                                                 @(block)(block.*obj.quantisationTables{obj.quantisationTableDestinationSelector(channelID) + 1}));
-            
+
                 % IDCT
                 reconstructedChannelWithLevelShift{c} = blkproc(dequantisedChannel{c}, [8 8], @idct2);
 
@@ -186,17 +186,17 @@ classdef JPEGDecoder < handle
             end
 
             obj.outputImageStruct = cell2struct(channel, {'y', 'cb', 'cr'}, 2);
-            
+
             if obj.verbose
                 figure(1),Subsampling.subsampledImageShow(obj.outputImageStruct);
             end
 
         end
-        
+
         function decodeFromNumericArray(obj)
             % For each segment marker decode section
             test1 = true;
-            hasSeenSOI = false; 
+            hasSeenSOI = false;
             hasSeenEOI = false;
             hasSeenSOF = false;
             hasSeenDQT = false;
@@ -204,7 +204,7 @@ classdef JPEGDecoder < handle
             hasSeenSOS = false;
             numberOfBytes = length(obj.inputStruct.numericData);
             currentByte = 1;
-            
+
             while test1
                 if obj.inputStruct.numericData(currentByte) == 255
                     currentByte = currentByte + 1;
@@ -228,31 +228,31 @@ classdef JPEGDecoder < handle
                                 disp('(SOF), Mode 0');
                             end
                             hasSeenSOF = true;
-                            
+
                             % decode it
                             currentByte = obj.decodeFrameHeaderFromNumericData(currentByte + 1);
-                            
+
                         case 218 % FF DA = 255 218 = Start of Scan
                             if ~hasSeenSOF || ~hasSeenDQT || ~hasSeenDHT
-                                throw(MException('JPEGDecoder:decodeFromNumericArray', 'A Scan Segment header (or Start of Scan marker) was encountered before one of more of the frame header or huffman or quantisation tables where found.')); 
+                                throw(MException('JPEGDecoder:decodeFromNumericArray', 'A Scan Segment header (or Start of Scan marker) was encountered before one of more of the frame header or huffman or quantisation tables where found.'));
                             end
                             if obj.verbose
                                 disp('(SOS)');
                             end
                             hasSeenSOS = true;
-                            
+
                             % decode it
                             currentByte = obj.decodeScanSegmentFromNumericData(currentByte + 1);
- 
+
                         case 219 % FF DB = 255 219 = Start of Quantisation Tables
                             if obj.verbose
                                 disp('(DQT)');
                             end
                             hasSeenDQT = true;
-                            
+
                             % decode it
                             currentByte = obj.decodeQuantisationTablesFromNumericData(currentByte + 1);
-                            
+
                         case 196 % FF C4 = 255 196 = Start of Huffman tables
                             if obj.verbose
                                 disp('(DHT)');
@@ -260,45 +260,45 @@ classdef JPEGDecoder < handle
                             % replaces prev tables if they are already
                             % defined
                             hasSeenDHT = true;
-                            
+
                             % Decode it
                             currentByte = obj.decodeHuffmanTablesFromNumericData(currentByte + 1);
-                            
+
                     end
                 end
                 currentByte = currentByte + 1;
                 test1 = (currentByte < numberOfBytes);
             end
-            
+
             if ~hasSeenSOS
-                throw(MException('JPEGDecoder:decodeFromNumericArray', 'The stream to decode does not contain anyay Start Of Scan marker. Without any scan segments there is no image data.')); 
+                throw(MException('JPEGDecoder:decodeFromNumericArray', 'The stream to decode does not contain anyay Start Of Scan marker. Without any scan segments there is no image data.'));
             end
-            
+
             if ~hasSeenSOI
-                throw(MException('JPEGDecoder:decodeFromNumericArray', 'The stream to decode contains no Start Of Image marker. Some of the image may have been decoded however so please check the output.')); 
+                throw(MException('JPEGDecoder:decodeFromNumericArray', 'The stream to decode contains no Start Of Image marker. Some of the image may have been decoded however so please check the output.'));
             end
-            
+
             if ~hasSeenEOI
-                throw(MException('JPEGDecoder:decodeFromNumericArray', 'The stream to decode contains no End Of Image marker. Some of the image may have been decoded however so please check the output.')); 
+                throw(MException('JPEGDecoder:decodeFromNumericArray', 'The stream to decode contains no End Of Image marker. Some of the image may have been decoded however so please check the output.'));
             end
         end
-        
+
         % TODO: MAKE THESE INTO UTILITIES!
         function short = getNumericShort(obj, startByte)
             short = (obj.inputStruct.numericData(startByte) * 256) + obj.inputStruct.numericData(startByte + 1);
         end
-        
+
         function [high low] = getNumericNibblesFromByte(obj, startByte)
             low = bitand(obj.inputStruct.numericData(startByte), 15);
             high = bitand(floor(obj.inputStruct.numericData(startByte) / 16), 15);
         end
-        
+
         function endByte = decodeFrameHeaderFromNumericData(obj, startByte)
             % ------------------------
             % Decode JPEG Frame header
             % ------------------------
             %
-            
+
             % Lf    (2 bytes)
             segmentLength           = obj.getNumericShort(startByte);
             % P     (1 byte)
@@ -310,7 +310,7 @@ classdef JPEGDecoder < handle
             obj.outputImageSize     = [imageWidth imageHeight];
             % Nf    (1 byte)
             obj.numberOfChannels    = obj.inputStruct.numericData(startByte + 7);
-            
+
             currentByte = startByte + 8;
             for i=1:obj.numberOfChannels
                 % Ci1   (1 byte)
@@ -322,7 +322,7 @@ classdef JPEGDecoder < handle
                 obj.quantisationTableDestinationSelector(obj.componentIdentifier(i)) = obj.inputStruct.numericData(currentByte + 2);
                 currentByte = currentByte + 3;
             end
-            
+
             % Compute subsampling mode for this image
             if obj.numberOfChannels == 3
                 obj.chromaSamplingMode = Subsampling.horizontalAndVerticalSamplingFactorsToMode(...
@@ -344,7 +344,7 @@ classdef JPEGDecoder < handle
                 obj.chromaSamplingMode = [];
                 obj.componentSizeInBlocks = {[ceil(obj.outputImageSize(1)/8) ceil(obj.outputImageSize(2)/8)]};
             end
-            
+
 
             % Verbose text
             if obj.verbose
@@ -356,19 +356,19 @@ classdef JPEGDecoder < handle
             end
             endByte = startByte + segmentLength - 1;
         end
-        
-        
+
+
         function endByte = decodeQuantisationTablesFromNumericData(obj, startByte)
             % --------------------------
             % Quantisation Table entries
             % --------------------------
             % Ref: CCITT Rec. T.81 (1992 E)	p.39
-            % 
-            % TODO MOVE DOCS HERE FROM THE createBitStream method! 
+            %
+            % TODO MOVE DOCS HERE FROM THE createBitStream method!
             %
             % Note: This method encodes 2 quantisation tables, one for
             % luminance channels and one for chroma.
-            
+
             % Lq
             segmentLength                   = obj.getNumericShort(startByte);
             if obj.verbose
@@ -383,21 +383,21 @@ classdef JPEGDecoder < handle
                 obj.quantisationTables{tableID + 1} = TransformCoding.coefficientOrdering(obj.inputStruct.numericData(currentByte+1:currentByte+64), 'dezigzag');
                 if obj.verbose
                     disp(['-- Table ' num2str(tableID) ': ']);
-                    
+
                     obj.quantisationTables{tableID + 1}
                 end
-                
+
                 currentByte = currentByte + 65;
             end
-            
+
             %endByte = currentByte;
-            endByte = startByte + segmentLength - 1; 
+            endByte = startByte + segmentLength - 1;
         end
-        
-        
-        
+
+
+
         function endByte = decodeHuffmanTablesFromNumericData(obj, startByte)
- 
+
 
             segmentLength = obj.getNumericShort(startByte);
             if obj.verbose
@@ -408,21 +408,21 @@ classdef JPEGDecoder < handle
             while (currentByte < startByte + segmentLength - 1)
                 % Tc:Th
                 [tableType tableID]    = obj.getNumericNibblesFromByte(currentByte);
-                
-                % Li 
+
+                % Li
                 Li = obj.inputStruct.numericData(currentByte + 1:currentByte + 16);
-                
+
                 currentByte = currentByte + 17;
-                
+
                 % Vi,j
                 LiOffset = cumsum(Li) + currentByte;
                 bytePositions = [currentByte; LiOffset(1:end - 1)];
-                
+
                 Vij = arrayfun(@(cnt, curr)(obj.inputStruct.numericData(curr:curr + cnt - 1)), ...
                     Li, bytePositions, 'UniformOutput', false);
-                
+
                 currentByte = LiOffset(end);
-                
+
                 if tableType == 0
                     obj.huffmanDCCodeCountPerCodeLength{tableID + 1} = Li;
                     obj.huffmanDCSymbolValuesPerCode{tableID + 1} = Vij;
@@ -432,7 +432,7 @@ classdef JPEGDecoder < handle
                     [a b] = obj.createHuffmanCodes(Li.', cell2mat(Vij).');
                     obj.huffmanCodesForDCCellArray{tableID + 1} = a;
                     obj.huffcodeForDCCellArray{tableID + 1} = b;
-                    
+
                 elseif tableType == 1
                     obj.huffmanACCodeCountPerCodeLength{tableID + 1} = Li;
                     obj.huffmanACSymbolValuesPerCode{tableID + 1} = Vij;
@@ -442,7 +442,7 @@ classdef JPEGDecoder < handle
                     obj.huffmanCodesForACCellArray{tableID + 1} = a;
                     obj.huffcodeForACCellArray{tableID + 1} = b;
                 else
-                    throw(MException('JPEGDecoder:decodeHuffmanTablesFromNumericData', 'The table type (Tc) can only be 0 or 1 where 0 = DC and 1 = AC.')); 
+                    throw(MException('JPEGDecoder:decodeHuffmanTablesFromNumericData', 'The table type (Tc) can only be 0 or 1 where 0 = DC and 1 = AC.'));
                 end
 
                 if obj.verbose
@@ -451,31 +451,31 @@ classdef JPEGDecoder < handle
                     %Li
                     %Vij
                 end
-                
+
             end
-            
+
             %endByte = currentByte;
-            endByte = startByte + segmentLength - 1; 
+            endByte = startByte + segmentLength - 1;
         end
-        
+
         function [huffmanCodesCellArray, huffcode] = createHuffmanCodes(obj, bits, huffvals)
             [huffsize, lastk] = EntropyCoding.generateTableOfHuffmanCodeSizes(bits);
             huffcode = EntropyCoding.generateTableOfHuffmanCodes(huffsize);
             [ehufco, ehufsi] = EntropyCoding.generateEncodingProcedureCodeTables( huffvals, huffcode, huffsize, lastk );
             huffmanCodesCellArray = arrayfun(@Utilities.decimalToLogical, ehufco, ehufsi, 'UniformOutput', false);
         end
-        
+
         function endByte = decodeScanSegmentFromNumericData(obj, startByte)
 
             % NOTE: this only supports non-interleaved data at the moment
-            
+
             % Ls    (2 bytes)
             segmentLength = obj.getNumericShort(startByte);
-            
+
             if obj.verbose
                 disp(['- Scan Segment (header ' num2str(segmentLength) ' bytes):']);
             end
-            
+
             % Ns    (1 byte)
             componentCount = obj.inputStruct.numericData(startByte + 2);
             if componentCount > 1
@@ -494,25 +494,25 @@ classdef JPEGDecoder < handle
             obj.scanSegments{channelID}.endPredictorID = obj.getNumericNibblesFromByte(startByte + 6);
             % Ah:Al (1 byte)
             [obj.scanSegments{channelID}.successiveApproximationBitPositionHigh obj.scanSegments{channelID}.successiveApproximationBitPositionLow] = obj.getNumericNibblesFromByte(startByte + 7);
-            
+
             if obj.verbose
                 disp(['-- Segment ' num2str(channelID) ', Huffman DC Table: ' num2str(obj.scanSegments{channelID}.huffmanDCTableID) ', Huffman AC Table: ' num2str(obj.scanSegments{channelID}.huffmanACTableID) ]);
             end
-            
+
             % Decode segment
             endByte = obj.decodeEntropyCodedSegmentFromNumericData(startByte + 8, channelID);
-                           
-            %endByte = startByte + segmentLength - 1;            
+
+            %endByte = startByte + segmentLength - 1;
         end
-        
-        
+
+
         function endByte = decodeEntropyCodedSegmentFromNumericData(obj, startByte, channelID)
             if obj.verbose
                 disp(['- Entropy Coded Segment ' num2str(channelID) ':']);
             end
-            
-            huffmanDCTableID = obj.scanSegments{channelID}.huffmanDCTableID; 
-            huffmanACTableID = obj.scanSegments{channelID}.huffmanACTableID; 
+
+            huffmanDCTableID = obj.scanSegments{channelID}.huffmanDCTableID;
+            huffmanACTableID = obj.scanSegments{channelID}.huffmanACTableID;
             % DECODE procedure
             % Ref: CCITT Rec. T.81 (1992 E)	p.107
             % DC
@@ -520,47 +520,47 @@ classdef JPEGDecoder < handle
             HUFFVALDC = cell2mat(obj.huffmanDCSymbolValuesPerCode{huffmanDCTableID + 1});
             HUFFCODE = obj.huffcodeForDCCellArray{huffmanDCTableID + 1};
             [minCodeForDC maxCodeForDC valueTablePointerForDC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
-            
+
             BITS = obj.huffmanACCodeCountPerCodeLength{huffmanACTableID + 1};
             HUFFVALAC = cell2mat(obj.huffmanACSymbolValuesPerCode{huffmanACTableID + 1});
             HUFFCODE = obj.huffcodeForACCellArray{huffmanACTableID + 1};
             [minCodeForAC maxCodeForAC valueTablePointerForAC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
-            
+
             clear BITS HUFFCODE
             % convert to logical and start matching to Huffman Codes
             % NON-INTERLEAVED
 
-            
+
             % HERE WE WILL END UP WITH BLOCKS but still RLZ and DC DIffed
             currentByte = startByte;
             currentBit = 1;
 
             % compute total pixels for channel with its Hi,Vi and image w,h
             totalBlocks = obj.componentSizeInBlocks{channelID};
-            
+
             for i=1:totalBlocks(1)*totalBlocks(2)
-                % For given block 
+                % For given block
 
                 % DC Category Huffman decode
                 [categoryOfDCDiff currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForDC, maxCodeForDC, valueTablePointerForDC, HUFFVALDC );
 
                 lengthOfExtraBits = categoryOfDCDiff;
-                
+
                 [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
-                
+
                 obj.differentiallyCodedDCCoefficient{channelID}(i,:) = [categoryOfDCDiff magnitudeExtraBitsValue];
-                
+
                 runLength = 0;
                 c = 0;
                 % Decode each coeff
                 while runLength < 63
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
-                    
-                    % To get current run lengths do 
+
+                    % To get current run lengths do
                     % arrayfun(@(d)(bitshift(d,-4)), obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(:,1))
                     %runLength
-                    
+
                     zerosLength = bitshift(valueForRS, -4);
                     c = c + 1;
                     % if RS = EOB stop block
@@ -579,23 +579,23 @@ classdef JPEGDecoder < handle
             end
 
             endByte = currentByte;
-            
+
         end
-        
+
         %{
         function decodeFromLogicalArray(obj)
             % For each segment marker decode section
             test1 = true;
-            
+
             numberOfBits = length(obj.inputStruct.binaryData);
             currentBit = 1;
-                
+
             while test1
                 if Utilities.logicalToUnsignedDecimal(obj.inputStruct.binaryData(currentBit:currentBit+7)) == 255
                     currentBit = currentBit + 8;
-                    
+
                     %%%%%instead of conert do logical array compare
-                    
+
                     switch(Utilities.logicalToUnsignedDecimal(obj.inputStruct.binaryData(currentBit:currentBit+7)))
                         case 216 % FF D8 = 255 216 = Start of Image
                             disp('SOI');
@@ -610,4 +610,4 @@ classdef JPEGDecoder < handle
         %}
 
    end
-end 
+end
