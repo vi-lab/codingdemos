@@ -127,7 +127,7 @@ classdef base < handle
            p = getpixelposition(obj.hInputImageSelect);
            setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
            
-           set(obj.hInputImageSelect, 'String', obj.getExampleImagesFromExamplesDirectory('exampleImages'));
+           set(obj.hInputImageSelect, 'String', obj.getExampleImagesFromExamplesDirectory('../examples'));
            
         end
         

@@ -87,7 +87,8 @@ switch channel
             chanData = reconstructionYCbCr;
         end
         if colourDisplay
-            imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3).*128);
+            %imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3).*128);
+            imToDisplay = uint8(zeros(size(reconstructionYCbCr)));
             imToDisplay(:,:,2) = chanData;
             chanData = ycbcr2rgb(imToDisplay);
         end
@@ -102,7 +103,8 @@ switch channel
             chanData = reconstructionYCbCr;
         end
         if colourDisplay
-            imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3).*128);
+            %imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3).*128);
+            imToDisplay = uint8(zeros(size(reconstructionYCbCr)));
             imToDisplay(:,:,3) = chanData;
             chanData = ycbcr2rgb(imToDisplay);
         end
