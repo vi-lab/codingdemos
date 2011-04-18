@@ -177,7 +177,7 @@ classdef base < handle
                     obj.changePanMode(obj.hToolbarPanButton);
                 end
                 zoom('on');
-                set(source, 'CData', imresize(imread('+GUIs/images/icons/cross_48.png','BackgroundColor',[1 1 1]), [16 16]));
+                set(source, 'CData', imresize(imread('+GUIs/images/icons/search_48.png','BackgroundColor',[0 0 0]), [16 16]));
             else
                 % off
                 zoom('off');
@@ -193,7 +193,7 @@ classdef base < handle
                     obj.changeZoomMode(obj.hToolbarZoomButton);
                 end
                 pan('on');
-                set(source, 'CData', imresize(imread('+GUIs/images/icons/cross_48.png','BackgroundColor',[1 1 1]), [16 16]));
+                set(source, 'CData', imresize(imread('+GUIs/images/icons/mouse_48.png','BackgroundColor',[0 0 0]), [16 16]));
             else
                 % off
                 pan('off');
@@ -206,7 +206,7 @@ classdef base < handle
             if strcmp(get(source, 'State'), 'on')
                 % on
                 % Override and add your code here
-                set(source, 'CData', imresize(imread('+GUIs/images/icons/cancel_48.png','BackgroundColor',[1 1 1]), [16 16]));
+                set(source, 'CData', imresize(imread('+GUIs/images/icons/add_48.png','BackgroundColor',[0 0 0]), [16 16]));
             else
                 % off
                 % Override and add your code here
@@ -215,7 +215,7 @@ classdef base < handle
         end
         
         function fileNames = getExampleImagesFromExamplesDirectory(obj, directory)
-           examples = struct2cell([dir(fullfile(directory, '*.bmp')) dir(fullfile(directory, '*.jpg')) dir(fullfile(directory, '*.png'))]);
+           examples = struct2cell([dir(fullfile(directory, '*.bmp')); dir(fullfile(directory, '*.jpg')); dir(fullfile(directory, '*.png'))]);
            fileNames = examples(1,:);
         end
        
