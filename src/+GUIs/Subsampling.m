@@ -165,7 +165,7 @@ classdef Subsampling < GUIs.base
                                         'FontSize', 10, ...
                                         'FontName', 'Courier New',...
                                         'Units', 'Normalized', ...
-                                        'Position',[((0.33*(i-1))+0.01) 0.26 0.2 0.03],...
+                                        'Position',[((0.33*(i-1))+0.01) 0.26 0.14 0.03],...
                                         'Value', obj.defaultSubsamplingMode(i), ...
                                         'String', obj.subsamplingModes(),...
                                         'Callback', @(source, event)(obj.changeSubsamplingModeForImage(source)));
@@ -201,19 +201,21 @@ classdef Subsampling < GUIs.base
         end
 
         function changeScreenMode(obj, source)
+
+            obj.changeScreenMode@GUIs.base(source);
+
             if strcmp(get(source, 'State'), 'on')
                 % on
                 set(obj.hInterpolationSelect, 'Visible', 'on');
                 set(obj.hInterpolationSelectText, 'Visible', 'on');
                 set(obj.hSelectedBlockPanel, 'Visible', 'on');
-                set(source, 'CData', imresize(imread('+GUIs/images/icons/cancel_48.png','BackgroundColor',[1 1 1]), [16 16]));
             else
                 % off
                 set(obj.hInterpolationSelect, 'Visible', 'off');
                 set(obj.hInterpolationSelectText, 'Visible', 'off');
                 set(obj.hSelectedBlockPanel, 'Visible', 'off');
-                set(source, 'CData', imresize(imread('+GUIs/images/icons/add_48.png','BackgroundColor',[1 1 1]), [16 16]));
             end
+            
         end
        
        function imageClick(obj, source)
