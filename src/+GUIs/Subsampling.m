@@ -1,11 +1,20 @@
 classdef Subsampling < GUIs.base
-%SUBSAMPLINGWINDOW Summary of this class goes here
-%   Detailed explanation goes here
+%SUBSAMPLING Screen designed to demostrate chroma subsampling
 %
 %   +GUIs/Subsampling.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   HELP INFO
+%   The following screen demostrates the principles and reasoning behind
+%   chroma subsampling to reduce visual redundancy.
+%
+%   Start a new screen by calling the class constructor:
+%       `GUIs.Subsampling`
+%   The constructor takes a 1st optional string argument, the name of the
+%   file in the examples directory to load.
+%       `GUIs.Subsampling('fruit.jpg')`
+%   The second optional string argument is the name of the examples
+%   directory to use:
+%       `GUIs.Subsampling('fruit.jpg', '../examples')`
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
@@ -43,9 +52,12 @@ classdef Subsampling < GUIs.base
    end
 
    methods
-        function obj = Subsampling(fileName)
-           
-            obj = obj@GUIs.base('Subsampling: Utilising Perceptual Redundancy');
+        function obj = Subsampling(fileName, examplesDirectory)
+
+            if ~exist('examplesDirectory', 'var')
+                examplesDirectory = '../examples/';
+            end
+            obj = obj@GUIs.base('Subsampling: Utilising Perceptual Redundancy', examplesDirectory);
            
             % default modes
             obj.defaultSubsamplingMode = [1 3 6];
@@ -256,40 +268,30 @@ classdef Subsampling < GUIs.base
                     %                                'Channel', 'y', 'Block', [bx by 4 2], 'Interpolation', obj.interpolationMode);
                     imshow([1 1 1 1; 1 1 1 1], 'Parent', obj.hSubsamplingModeImageAxes{i}{4});
                     % Draw rectangles for mode
-                    
-                    % FIXME
-                    
+
                     [ yHi yVi cbHi cbVi crHi crVi ] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct{i}.mode);
 
                     mHi = max([yHi cbHi crHi]);
                     mVi = max([yVi cbVi crVi]);
 
-                    X = [1:mHi:4];%((samplesPerHorizontalDistance - 1)*2)+1];
-                    Y = [1:mVi:2];
-                    %coordinatesOfRects = meshgrid(X, Y)
-                    %if coordinatesOfRects == 1
-                    %    coordinatesOfRects = [1 1];
-                    %end
-                    
-                    % TODO: ARG!!!!!!!!!!!
-                    coordinatesOfRects = [];
-                    cnt = 1;
-                    for l = 1:length(Y)
-                        for k = 1:length(X)
-                            coordinatesOfRects(cnt, :) = [X(k) Y(l)];
-                            cnt = cnt + 1;
-                        end
-                    end
+                    X = 1:mHi:4;
+                    Y = 1:mVi:2;
+
+                    % There must be a simpler way!
+                    coordinatesOfRects = cell2mat(arrayfun(@(x)(cell2mat(arrayfun(@(y)([x y]), Y(:), 'UniformOutput', false))), X(:), 'UniformOutput', false));
 
                     positionsLuminance = {[0.5 0.5 4 2]};
 
                     positionsChroma = arrayfun(@(x, y)([x-0.4 y-0.4 mHi-0.2 mVi-0.2]), coordinatesOfRects(:,1), coordinatesOfRects(:,2), 'UniformOutput', false);
 
-                    cellfun(@(r)(rectangle('EdgeColor', [0 0 0], 'LineWidth', 0.5, 'Parent', obj.hSubsamplingModeImageAxes{i}{4}, 'Position', r)), ...
+                    cellfun(@(r)(rectangle('EdgeColor', [0 0 0], 'LineWidth', 0.5, ...
+                                    'Parent', obj.hSubsamplingModeImageAxes{i}{4}, 'Position', r)), ...
                                 positionsLuminance);
-                    cellfun(@(r)(rectangle('EdgeColor', [0 0 0.7], 'LineWidth', 0.5, 'Parent', obj.hSubsamplingModeImageAxes{i}{4}, 'Position', r)), ...
+                    cellfun(@(r)(rectangle('EdgeColor', [0 0 0.7], 'LineWidth', 0.5, ...
+                                    'Parent', obj.hSubsamplingModeImageAxes{i}{4}, 'Position', r)), ...
                                 positionsChroma);
-                    cellfun(@(r)(rectangle('EdgeColor', [0 0.7 0], 'LineWidth', 0.5, 'Parent', obj.hSubsamplingModeImageAxes{i}{4}, 'Position', r)), ...
+                    cellfun(@(r)(rectangle('EdgeColor', [0 0.7 0], 'LineWidth', 0.5, ...
+                                    'Parent', obj.hSubsamplingModeImageAxes{i}{4}, 'Position', r)), ...
                                 cellfun(@(arr)([arr(1)+0.1 arr(2)+0.1 arr(3)-0.2 arr(4)-0.2]), positionsChroma,'UniformOutput', false));
 
 
@@ -403,7 +405,7 @@ classdef Subsampling < GUIs.base
 
         function updatePixelCounts(obj)
             for i=1:length(obj.imageStruct)
-                [ yHi yVi cbHi cbVi crHi crVi ] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct{i}.mode);
+                %[ yHi yVi cbHi cbVi crHi crVi ] = Subsampling.modeToHorizontalAndVerticalSamplingFactors(obj.imageStruct{i}.mode);
                 pixelcount = numel(obj.imageStruct{i}.y) + numel(obj.imageStruct{i}.cb) + numel(obj.imageStruct{i}.cr);
                 set(obj.hSubsampledImagePixelCount{i}, 'String', ['Number of Pixels: ' num2str(pixelcount)]);
             end
