@@ -27,14 +27,23 @@ classdef base < handle
        
        hInputImageSelectText
        hInputImageSelect
-       
+
+       examplesDirectory
+
        inputMatrix
        imageStruct
        channelToShow
    end
 
    methods
-        function obj = base(panelTitle)
+        function obj = base(panelTitle, examplesDirectory)
+
+            if ~exist('examplesDirectory', 'var')
+                obj.examplesDirectory = '../examples/';
+            else
+                obj.examplesDirectory = examplesDirectory;
+            end
+
             scrsz = get(0, 'ScreenSize');
             obj.windowSize = scrsz;
             obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.75 scrsz(3)*0.75], 'Color', [1 1 1]);
@@ -127,7 +136,7 @@ classdef base < handle
            p = getpixelposition(obj.hInputImageSelect);
            setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
            
-           set(obj.hInputImageSelect, 'String', obj.getExampleImagesFromExamplesDirectory('../examples'));
+           set(obj.hInputImageSelect, 'String', obj.getExampleImagesFromExamplesDirectory());
            
         end
         
@@ -154,7 +163,7 @@ classdef base < handle
         
         function changeInput(obj, source)
            files = get(source, 'String');
-           fileName = fullfile('../examples', files{get(source, 'Value')});
+           fileName = fullfile(obj.examplesDirectory, files{get(source, 'Value')});
            imageRGB = imread(fileName);
            
             if isempty(imageRGB)
@@ -214,8 +223,8 @@ classdef base < handle
             end
         end
         
-        function fileNames = getExampleImagesFromExamplesDirectory(obj, directory)
-           examples = struct2cell([dir(fullfile(directory, '*.bmp')); dir(fullfile(directory, '*.jpg')); dir(fullfile(directory, '*.png'))]);
+        function fileNames = getExampleImagesFromExamplesDirectory(obj)
+           examples = struct2cell([dir(fullfile(obj.examplesDirectory, '*.bmp')); dir(fullfile(obj.examplesDirectory, '*.jpg')); dir(fullfile(obj.examplesDirectory, '*.png'))]);
            fileNames = examples(1,:);
         end
        
