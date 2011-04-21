@@ -55,10 +55,11 @@ classdef Subsampling < GUIs.base
         function obj = Subsampling(fileName, examplesDirectory)
 
             if ~exist('examplesDirectory', 'var')
-                examplesDirectory = '../examples/';
+                obj = obj@GUIs.base('Subsampling: Utilising Perceptual Redundancy');
+            else
+                obj = obj@GUIs.base('Subsampling: Utilising Perceptual Redundancy', examplesDirectory);
             end
-            obj = obj@GUIs.base('Subsampling: Utilising Perceptual Redundancy', examplesDirectory);
-           
+
             % default modes
             obj.defaultSubsamplingMode = [1 3 6];
             obj.channelToShow = 'all';

@@ -39,7 +39,7 @@ classdef base < handle
         function obj = base(panelTitle, examplesDirectory)
 
             if ~exist('examplesDirectory', 'var')
-                obj.examplesDirectory = '../examples/';
+                obj.examplesDirectory = 'examples/';
             else
                 obj.examplesDirectory = examplesDirectory;
             end
