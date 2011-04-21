@@ -195,6 +195,9 @@ classdef decoder < handle
             end
 
         end
+    end
+    
+    methods (Access='private')
 
         function decodeFromNumericArray(obj)
             % For each segment marker decode section
