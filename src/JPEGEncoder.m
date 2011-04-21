@@ -233,8 +233,7 @@ classdef JPEGEncoder < handle
             if obj.useBuiltInMethods
                 methods = struct('DCT', @dct2, 'IDCT', @idct2);
             else
-                addpath('lib');
-                methods = struct('DCT', @mirt_dctn, 'IDCT', @mirt_idctn);
+                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
             end
 
             if obj.isEnabledStage.entropyCoding; isCoding = 'on'; else isCoding = 'off'; end
