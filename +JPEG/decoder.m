@@ -1,21 +1,23 @@
 classdef decoder < handle
-%JPEG.DECODER Summary of this class goes here
-%Detailed explanation goes here
+%JPEG.DECODER The JPEG decoder body
 %
-%   JPEG.decoder.m
+%   +JPEG/decoder.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   JPEG.decoder Properties:
-%       * inputImageData - first property
-%       * imageMatrix - first property
+%   JPEG.decoder main properties:
+%    * verbose (r/w): boolean to enable/disable verbose console output
+%    * inputStruct (r/w): The subsampled input image structure
+%    * outputImageMatrix (r): The decoded image in matrix (YCbCr) form
+%    * outputImageStruct (r): The decoded image in subsampled struct form
 %
-%   JPEG.decoder Methods:
-%       * JPEG.decoder() - Constructor takes optional source parameter
+%   JPEG.decoder public methods:
+%    * decoder(parameters): The decoder constructor, ...
+%    * decode(parameters): The main decode method. Call this to decode the
+%    current input. Returns the decoded image in RGB matrix form.
 %
-%
-%   Example commands:
-%       obj = JPEG.decoder();
-%       obj.decode('Verbose', true);
+%   Example usage:
+%       obj = JPEG.decoder('image.jpg');
+%       imshow(obj.decode('Verbose', true));
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
@@ -23,15 +25,14 @@ classdef decoder < handle
 
     properties (SetObservable)
         inputStruct
+        verbose = false;
     end
 
     properties (SetObservable, SetAccess='private')
-        verbose = false;
 
         chromaSamplingMode
         outputImageSize
         numberOfChannels
-
 
         componentIdentifier
         horizontalSamplingFactor
@@ -186,6 +187,8 @@ classdef decoder < handle
             end
 
             obj.outputImageStruct = cell2struct(channel, {'y', 'cb', 'cr'}, 2);
+            obj.outputImageMatrix = Subsampling.subsampledToYCbCrImage(obj.outputImageStruct);
+            outputImage = ycbcr2rgb(obj.outputImageMatrix);
 
             if obj.verbose
                 figure(1),Subsampling.subsampledImageShow(obj.outputImageStruct);
