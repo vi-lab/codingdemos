@@ -1,35 +1,58 @@
-%-------------------------------------------------------------------------%
-%   -- MATLAB Image & Video Compression Demos --                          |
-%                                                                         |
-%       including a (non-interleaved, sequentual DCT, huffman coded) JPEG |
-%       implementation.                                                   |
-%                                                                         |
-%                                                                         |
-% Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.        |
-% All rights reserved.                                                    |
-%                                                                         |
-% Redistribution and use in source and binary forms, with or without      |
-% modification, are permitted provided that the following conditions are  |
-% met:                                                                    |
-%                                                                         |
-% * Redistributions of source code must retain the above copyright notice,|
-%   this list of conditions and the following disclaimer.                 |
-% * Redistributions in binary form must reproduce the above copyright     |
-%   notice, this list of conditions and the following disclaimer in the   |
-%   documentation and/or other materials provided with the distribution.  |
-% * Neither the name of the University of Bristol nor the names of its    |
-%   contributors may be used to endorse or promote products derived from  |
-%   this software without specific prior written permission.              |
-%                                                                         |
-% THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS |
-% IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO|
-% , THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR|
-% PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR       |
-% CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,   |
-% EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,     |
-% PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR      |
-% PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF  |
-% LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING    |
-% NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS      |
-% SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.            |
-%-------------------------------------------------------------------------%
+MATLAB Image & Video Compression Demos
+--------------------------------------
+
+Demonstration applications and related code for teaching the principles and
+implementations of image and video compression techniques.
+
+# Quick Start
+
+Begin the home demo screen with the command `start` in the root directory
+of the project. To navigate between demos use the Home/Back and Forward
+arrows in the screen toolbar. To show or hide more detailed elements of the
+demos screens use the Advanced Mode button (the green plus button).
+
+For more detailed information on each process see the documentation in each
+package. Where appropriate each method should also contain references to
+locations on the web or in standards documents where more information can
+be found.
+
+# Included MATLAB Packages
+
+The following packages are included:
+
+* GUIs: Contains the classes that implement the user interface screens. The
+  `base` class contains any shared functionality and all screens should
+  derive from this (and chain the parent constructor).
+* Subsampling: Contains methods that implement functionality related to
+  chroma subsampling and reconstruction.
+* TransformCoding: Contains methods performing stages of the DCT process.
+* EntropyCoding: Contains methods for the entropy encoding/decoding of JPEG
+  (Huffman coding).
+* JPEG: Contains the JPEG encoder and decoder bodies.
+* Video: N/A at the moment.
+* Utilities: Contains helper methods, such as methods to convert logical
+  arrays of bits into numerical values and vice-versa.
+* ThirdParty: 3rd party code, such as a faster implementation of the DCT.
+* UnitTests: Unit tests for all packages.
+
+License & Authors
+-----------------
+
+Copyright 2011, The University Of Bristol
+See License.m for the project code license.
+
+Authors:
+
+* [Stephen Ierodiaconou](http://www.stephenierodiaconou.com/)
+
+Third party components are copyright their respective owners:
+
+* [N-D discrete cosine transform](https://sites.google.com/site/myronenko/) - Andriy Myronenko, 2010
+
+The Bristol Vision Institute
+----------------------------
+
+[The Bristol Vision Institute](http://www.bristol.ac.uk/vision-institute/)
+at the University of Bristol is a world leader in vision science. Bristol
+has a long and rich tradition at the forefront of the study of human and
+animal vision, artificial vision systems and imaging more generally.
