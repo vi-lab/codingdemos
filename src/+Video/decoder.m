@@ -1,5 +1,5 @@
-classdef VideoDecoder < handle
-%VIDEODECODER Summary of this class goes here
+classdef decoder < handle
+%VIDEO.DECODER Summary of this class goes here
 %   Detailed explanation goes here
 %
 % Copyright 2011, Stephen Ierodiaconou, University of Bristol.

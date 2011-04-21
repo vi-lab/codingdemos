@@ -1,20 +1,20 @@
-classdef JPEGDecoder < handle
-%JPEGDECODER Summary of this class goes here
+classdef decoder < handle
+%JPEG.DECODER Summary of this class goes here
 %Detailed explanation goes here
 %
-%   JPEGDecoder.m
+%   JPEG.decoder.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   JPEGEncoder Properties:
+%   JPEG.decoder Properties:
 %       * inputImageData - first property
 %       * imageMatrix - first property
 %
-%   JPEGEncoder Methods:
-%       * JPEGDecoder() - Constructor takes optional source parameter
+%   JPEG.decoder Methods:
+%       * JPEG.decoder() - Constructor takes optional source parameter
 %
 %
 %   Example commands:
-%       obj = JPEGDecoder();
+%       obj = JPEG.decoder();
 %       obj.decode('Verbose', true);
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
@@ -75,7 +75,7 @@ classdef JPEGDecoder < handle
     end
 
     methods
-        function obj = JPEGDecoder(source)
+        function obj = decoder(source)
             if exist('source','var')
                 obj.inputStruct = source;
             end

@@ -49,7 +49,7 @@ classdef TransformCoding < GUIs.base
 
             if ~exist('encoder', 'var')
                 %throw(MException('TransformWindow:TransformWindow', 'You must pass in the instance of the JPEG encoder.'));
-                encoder = JPEGEncoder('../examples/lena_color_256.bmp');
+                encoder = JPEG.encoder('../examples/lena_color_256.bmp');
             end
 
             if isempty(encoder.reconstruction)
