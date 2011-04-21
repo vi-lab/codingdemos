@@ -1,21 +1,35 @@
 classdef encoder < handle
-%JPEG.ENCODER Implementation of JPEG Encoder
-%Detailed explanation goes here
+%JPEG.ENCODER Implementation of a JPEG encoder body
 %
-%   JPEG.encoder.m
+%   +JPEG/encoder.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   JPEG.encoder Properties:
-%       * inputImageData - first property
-%       * imageMatrix - first property
+%   JPEG.encoder main properties:
+%    * verbose (r/w): boolean to set state of verbose output to console
+%    * input (r/w): the input image data. This parameter has a setter
+%    method that determines the type of the data set to it to perform the
+%    appropriate action. Can be set to a string filename, an image matrix
+%    or a subsampled image structure.
+%    * qualityFactor (r/w): an integer in the range 0-100 indicating the
+%    quality of the JPEG to create, as per the IJG's JPEG implementation
+%    * chromaSamplingMode (r/w): a string indicating the subsampling mode,
+%    e.g. '4:2:0'
+%    * output (r): the output data bitstream
+%    * reconstruction (r): if 'doReconstruction' is true then this is set
+%    to the YCbCr subsampled image structure of the reconstructed inverse
+%    quantised/transformed data.
 %
-%   JPEG.encoder Methods:
-%       * JPEG.encoder() - Constructor takes optional source parameter
-%
+%   JPEG.encoder public methods:
+%    * encoder(source): Constructor takes optional source filename
+%    * encode(parameters): Actual encode procedure, returns a logical or
+%    numeric array of the output bitstream.
+%    * encodeToFile(filename, parameters): Actual encode procedure with
+%    specific output file for bitstream. Returns boolean to indicate
+%    success.
 %
 %   Example commands:
 %       obj = JPEG.encoder('exampleImages/lena_color_256.bmp','DoEntropyCoding', false, 'DoReconstruction', true, 'Verbose', true);
-%       obj.encode('Verbose', false);
+%       bits = obj.encode();
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
@@ -127,50 +141,6 @@ classdef encoder < handle
             obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', ...
                 'DoEntropyCoding', true, 'DoReconstruction', true, 'DoRunLengthCoding', true, 'DoReordering', true, 'DoDCDifferentials', true, ...
                 'Verbose', false, 'BuiltIns', false);
-        end
-
-        function setCodingParameters(obj, varargin)
-            for k=1:2:size(varargin,2)
-                switch lower(varargin{k})
-                    case 'quality'
-                        if isa(varargin{k+1}, 'numeric')
-                            obj.qualityFactor = varargin{k+1};
-                        else
-                            throw(MException('JPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.'));
-                        end
-                    case 'subsampling'
-                        if isa(varargin{k+1}, 'char')
-                            obj.chromaSamplingMode = varargin{k+1};
-                        else
-                            throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.'));
-                        end
-                    case 'dostagesafterquantisation'
-                        c = varargin{k+1};
-                        obj.isEnabledStage.reOrderingCoefficients = c;
-                        obj.isEnabledStage.runLengthCoding = c;
-                        obj.isEnabledStage.differentialDC = c;
-                        obj.isEnabledStage.entropyCoding = c;
-                    case 'dorunlengthcoding'
-                        obj.isEnabledStage.runLengthCoding = varargin{k+1};
-                    case 'doreordering'
-                        obj.isEnabledStage.reOrderingCoefficients = varargin{k+1};
-                    case 'dodcdifferentials'
-                        obj.isEnabledStage.differentialDC = varargin{k+1};
-                    case 'doentropycoding'
-                        obj.isEnabledStage.entropyCoding = varargin{k+1};
-                    case 'doreconstruction'
-                        obj.doReconstruction = varargin{k+1};
-                    case 'verbose'
-                        obj.verbose = varargin{k+1};
-                    case 'builtins'
-                        obj.useBuiltInMethods = varargin{k+1};
-                    case 'coefficientmap'
-                        obj.basisCoefficientMap = varargin{k+1};
-                end
-            end
-
-            % ************************************************************
-            % TODO throw exception on invalid combos
         end
 
         function reset(obj)
@@ -414,6 +384,53 @@ classdef encoder < handle
                 obj.encodedDCCellArray = [];
                 stream = [];
             end
+        end
+    end
+
+    methods (Access='private')
+
+        function setCodingParameters(obj, varargin)
+            for k=1:2:size(varargin,2)
+                switch lower(varargin{k})
+                    case 'quality'
+                        if isa(varargin{k+1}, 'numeric')
+                            obj.qualityFactor = varargin{k+1};
+                        else
+                            throw(MException('JPEGEncoder:setCodingParameters', 'The quality factor should be a numeric value.'));
+                        end
+                    case 'subsampling'
+                        if isa(varargin{k+1}, 'char')
+                            obj.chromaSamplingMode = varargin{k+1};
+                        else
+                            throw(MException('JPEGEncoder:setCodingParameters', 'The chroma sampling mode should be a string value. To see supported modes run ''Subsampling.supportedModes''.'));
+                        end
+                    case 'dostagesafterquantisation'
+                        c = varargin{k+1};
+                        obj.isEnabledStage.reOrderingCoefficients = c;
+                        obj.isEnabledStage.runLengthCoding = c;
+                        obj.isEnabledStage.differentialDC = c;
+                        obj.isEnabledStage.entropyCoding = c;
+                    case 'dorunlengthcoding'
+                        obj.isEnabledStage.runLengthCoding = varargin{k+1};
+                    case 'doreordering'
+                        obj.isEnabledStage.reOrderingCoefficients = varargin{k+1};
+                    case 'dodcdifferentials'
+                        obj.isEnabledStage.differentialDC = varargin{k+1};
+                    case 'doentropycoding'
+                        obj.isEnabledStage.entropyCoding = varargin{k+1};
+                    case 'doreconstruction'
+                        obj.doReconstruction = varargin{k+1};
+                    case 'verbose'
+                        obj.verbose = varargin{k+1};
+                    case 'builtins'
+                        obj.useBuiltInMethods = varargin{k+1};
+                    case 'coefficientmap'
+                        obj.basisCoefficientMap = varargin{k+1};
+                end
+            end
+
+            % ************************************************************
+            % TODO throw exception on invalid combos
         end
 
         % Helper Methods
