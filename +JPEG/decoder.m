@@ -129,7 +129,9 @@ classdef decoder < handle
                 end
 
                 % Reconstruct DC diff values by sign extending.
-                blocksDCDiffValues{c} = arrayfun(@(cat, mag)(EntropyCoding.extendSignBitOfDecodedValue(mag, cat)), obj.differentiallyCodedDCCoefficient{c}(:,1).', obj.differentiallyCodedDCCoefficient{c}(:,2).');
+                blocksDCDiffValues{c} = cellfun(@(cat, mag)( ...
+                        EntropyCoding.extendSignBitOfDecodedValue(mag, cat) ...
+                    ), obj.differentiallyCodedDCCoefficient{c}(:,1).', obj.differentiallyCodedDCCoefficient{c}(:,2).');
 
                 % These decoded values are differential so cumulative sum
                 % them to get original values
@@ -554,7 +556,7 @@ classdef decoder < handle
 
                 [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
-                obj.differentiallyCodedDCCoefficient{channelID}(i,:) = [categoryOfDCDiff magnitudeExtraBitsValue];
+                obj.differentiallyCodedDCCoefficient{channelID}(i,:) = {categoryOfDCDiff, magnitudeExtraBitsValue};
 
                 runLength = 0;
                 c = 0;
