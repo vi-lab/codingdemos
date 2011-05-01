@@ -1,21 +1,23 @@
 classdef decoder < handle
-%JPEG.DECODER Summary of this class goes here
-%Detailed explanation goes here
+%JPEG.DECODER The JPEG decoder body
 %
-%   JPEG.decoder.m
+%   +JPEG/decoder.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   JPEG.decoder Properties:
-%       * inputImageData - first property
-%       * imageMatrix - first property
+%   JPEG.decoder main properties:
+%    * verbose (r/w): boolean to enable/disable verbose console output
+%    * inputStruct (r/w): The subsampled input image structure
+%    * outputImageMatrix (r): The decoded image in matrix (YCbCr) form
+%    * outputImageStruct (r): The decoded image in subsampled struct form
 %
-%   JPEG.decoder Methods:
-%       * JPEG.decoder() - Constructor takes optional source parameter
+%   JPEG.decoder public methods:
+%    * decoder(parameters): The decoder constructor, ...
+%    * decode(parameters): The main decode method. Call this to decode the
+%    current input. Returns the decoded image in RGB matrix form.
 %
-%
-%   Example commands:
-%       obj = JPEG.decoder();
-%       obj.decode('Verbose', true);
+%   Example usage:
+%       obj = JPEG.decoder('image.jpg');
+%       imshow(obj.decode('Verbose', true));
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
@@ -23,15 +25,14 @@ classdef decoder < handle
 
     properties (SetObservable)
         inputStruct
+        verbose = false;
     end
 
     properties (SetObservable, SetAccess='private')
-        verbose = false;
 
         chromaSamplingMode
         outputImageSize
         numberOfChannels
-
 
         componentIdentifier
         horizontalSamplingFactor
@@ -128,7 +129,9 @@ classdef decoder < handle
                 end
 
                 % Reconstruct DC diff values by sign extending.
-                blocksDCDiffValues{c} = arrayfun(@(cat, mag)(EntropyCoding.extendSignBitOfDecodedValue(mag, cat)), obj.differentiallyCodedDCCoefficient{c}(:,1).', obj.differentiallyCodedDCCoefficient{c}(:,2).');
+                blocksDCDiffValues{c} = cellfun(@(cat, mag)( ...
+                        EntropyCoding.extendSignBitOfDecodedValue(mag, cat) ...
+                    ), obj.differentiallyCodedDCCoefficient{c}(:,1).', obj.differentiallyCodedDCCoefficient{c}(:,2).');
 
                 % These decoded values are differential so cumulative sum
                 % them to get original values
@@ -151,8 +154,8 @@ classdef decoder < handle
 
                 blocksACCoefficients{c} = cellfun(@(block)(...
                         Utilities.padArray( ...
-                            cell2mat(... %sprintf([num2str(bitand(RS, 15)) ' ' num2str(bitshift(RS, -4))])
-                                arrayfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
+                            cell2mat(...
+                                cellfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
                             .') ...
                         , 0, 63) ...
                     ), obj.zerosRunLengthCodedOrderedACCoefficients{c}, 'UniformOutput', false);
@@ -186,12 +189,17 @@ classdef decoder < handle
             end
 
             obj.outputImageStruct = cell2struct(channel, {'y', 'cb', 'cr'}, 2);
+            obj.outputImageMatrix = Subsampling.subsampledToYCbCrImage(obj.outputImageStruct);
+            outputImage = ycbcr2rgb(obj.outputImageMatrix);
 
             if obj.verbose
                 figure(1),Subsampling.subsampledImageShow(obj.outputImageStruct);
             end
 
         end
+    end
+    
+    methods (Access='private')
 
         function decodeFromNumericArray(obj)
             % For each segment marker decode section
@@ -533,7 +541,9 @@ classdef decoder < handle
 
             % HERE WE WILL END UP WITH BLOCKS but still RLZ and DC DIffed
             currentByte = startByte;
-            currentBit = 1;
+            % Cur bit starts at 0 as its incremented at start of call to
+            % decode
+            currentBit = 0;
 
             % compute total pixels for channel with its Hi,Vi and image w,h
             totalBlocks = obj.componentSizeInBlocks{channelID};
@@ -548,12 +558,13 @@ classdef decoder < handle
 
                 [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
-                obj.differentiallyCodedDCCoefficient{channelID}(i,:) = [categoryOfDCDiff magnitudeExtraBitsValue];
+                obj.differentiallyCodedDCCoefficient{channelID}(i,:) = {categoryOfDCDiff, magnitudeExtraBitsValue};
 
-                runLength = 0;
+                acLength = 0;
                 c = 0;
+
                 % Decode each coeff
-                while runLength < 63
+                while acLength < 63
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
 
@@ -562,18 +573,19 @@ classdef decoder < handle
                     %runLength
 
                     zerosLength = bitshift(valueForRS, -4);
+
                     c = c + 1;
                     % if RS = EOB stop block
                     if valueForRS == 0
-                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [0 0];
+                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {0, 0, 0};
                         break;
                     else
                         % Get extra magnitude bits (RECEIVE)
                         lengthOfExtraBits = bitand(valueForRS, 15);
                         [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
-                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = [valueForRS magnitudeExtraBitsValue];
-                        runLength = runLength + zerosLength + 1;
+                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {valueForRS, magnitudeExtraBitsValue, zerosLength};
+                        acLength = acLength + zerosLength + 1;
                     end
                 end
             end
