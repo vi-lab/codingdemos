@@ -11,6 +11,11 @@ function [ coefficients ] = decodeACZerosRunLengthValue( RS, extraMagnitudeValue
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
+if RS == 0
+    coefficients = [];
+    return
+end
+
 S_magnitudeCategory = bitand(RS, 15);
 R_zerosRunLength = bitshift(RS, -4);
 
