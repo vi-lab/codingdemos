@@ -154,7 +154,7 @@ classdef decoder < handle
 
                 blocksACCoefficients{c} = cellfun(@(block)(...
                         Utilities.padArray( ...
-                            cell2mat(... %sprintf([num2str(bitand(RS, 15)) ' ' num2str(bitshift(RS, -4))])
+                            cell2mat(...
                                 cellfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
                             .') ...
                         , 0, 63) ...
@@ -541,7 +541,9 @@ classdef decoder < handle
 
             % HERE WE WILL END UP WITH BLOCKS but still RLZ and DC DIffed
             currentByte = startByte;
-            currentBit = 1;
+            % Cur bit starts at 0 as its incremented at start of call to
+            % decode
+            currentBit = 0;
 
             % compute total pixels for channel with its Hi,Vi and image w,h
             totalBlocks = obj.componentSizeInBlocks{channelID};
@@ -558,10 +560,11 @@ classdef decoder < handle
 
                 obj.differentiallyCodedDCCoefficient{channelID}(i,:) = {categoryOfDCDiff, magnitudeExtraBitsValue};
 
-                runLength = 0;
+                acLength = 0;
                 c = 0;
+
                 % Decode each coeff
-                while runLength < 63
+                while acLength < 63
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
 
@@ -574,15 +577,15 @@ classdef decoder < handle
                     c = c + 1;
                     % if RS = EOB stop block
                     if valueForRS == 0
-                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {0, 0};
+                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {0, 0, 0};
                         break;
                     else
                         % Get extra magnitude bits (RECEIVE)
                         lengthOfExtraBits = bitand(valueForRS, 15);
                         [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
-                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {valueForRS, magnitudeExtraBitsValue};
-                        runLength = runLength + zerosLength + 1;
+                        obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {valueForRS, magnitudeExtraBitsValue, zerosLength};
+                        acLength = acLength + zerosLength + 1;
                     end
                 end
             end
