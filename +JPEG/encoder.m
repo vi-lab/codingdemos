@@ -229,12 +229,6 @@ classdef encoder < handle
 
             obj.setCodingParameters(varargin{:});
 
-            if obj.useBuiltInMethods
-                methods = struct('DCT', @dct2, 'IDCT', @idct2);
-            else
-                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
-            end
-
             if obj.isEnabledStage.entropyCoding; isCoding = 'on'; else isCoding = 'off'; end
             if obj.doReconstruction; isRec = 'on'; else isRec = 'off'; end
             if obj.verbose; disp(['Start encoding: (entropy coding: ' isCoding ', reconstruction: ' isRec ') -- Quality Factor: ' num2str(obj.qualityFactor) ', chroma sampling mode: ' obj.chromaSamplingMode]); end
@@ -271,6 +265,74 @@ classdef encoder < handle
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
 
+            obj.transformCode();
+
+            imageSize = size(obj.imageMatrix);
+
+            % Perform entropy coding and create the output file bitstream
+            % if desired.
+            if obj.isEnabledStage.entropyCoding
+
+                % Huffman Code DC Values
+                % Ref: CCITT Rec. T.81 (1992 E) p.88
+                %
+                % The following generates the table of Huffman codes which
+                % represent the 12 luminance DC difference categories (or
+                % ranges). The codes are generated so that there is no chance
+                % of a code consisting only of 1s.
+                codeLengths     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
+                symbolValues    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
+                huffmanCodesForDC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
+
+                % The Chroma DC Huffman code table for the 12 categories
+                codeLengths     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
+                symbolValues    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
+                huffmanCodesForDC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
+
+                % The DC value for each block in raster order
+                obj.encodedDCCellArray = arrayfun(@(channelID)( ...
+                                                    arrayfun(@(x)(...
+                                                        EntropyCoding.encodeDCValue(x, huffmanCodesForDC{floor(channelID/2)+1}) ...
+                                                    ), obj.differentialDCCoefficients{channelID}, 'UniformOutput', false)...
+                                                ), 1:imageSize(3), 'UniformOutput', false);
+
+                % Huffman Code AC Values
+                % Ref: CCITT Rec. T.81 (1992 E) p.89
+                %   Luminance
+                codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
+                symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
+                huffmanCodesForAC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
+                %   Chroma
+                codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
+                symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
+                huffmanCodesForAC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
+
+                % Note, at this point the zerosRunLengthCoding has already
+                % handled the special RS value cases, so the entries need
+                % simply encoding (-1 values are to be ignored)
+                obj.encodedACCellArray = arrayfun(@(channelID)( ...
+                                                    obj.encodeACCoefficientsOfChannel(channelID, huffmanCodesForAC{floor(channelID/2)+1}) ...
+                                                ), 1:imageSize(3), 'UniformOutput', false);
+
+                % Create the output bitstream
+                stream = obj.createBitStream();
+            else
+                obj.encodedDCCellArray = [];
+                obj.encodedDCCellArray = [];
+                obj.encodedDCCellArray = [];
+                stream = [];
+            end
+        end
+    end
+
+    methods (Access='protected')
+
+        function transformCode(obj)
+            if obj.useBuiltInMethods
+                methods = struct('DCT', @dct2, 'IDCT', @idct2);
+            else
+                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
+            end
             % Perform the data level shift. This is part of the JPEG
             % standard. It helps reduce the magnitude of the DC coefficient
             % so it is in the order of magnitude of the data type used for
@@ -359,64 +421,7 @@ classdef encoder < handle
                 obj.reconstruction = structImage;
 
             end
-
-            % Perform entropy coding and create the output file bitstream
-            % if desired.
-            if obj.isEnabledStage.entropyCoding
-
-                % Huffman Code DC Values
-                % Ref: CCITT Rec. T.81 (1992 E) p.88
-                %
-                % The following generates the table of Huffman codes which
-                % represent the 12 luminance DC difference categories (or
-                % ranges). The codes are generated so that there is no chance
-                % of a code consisting only of 1s.
-                codeLengths     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
-                symbolValues    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
-                huffmanCodesForDC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
-
-                % The Chroma DC Huffman code table for the 12 categories
-                codeLengths     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
-                symbolValues    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
-                huffmanCodesForDC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
-
-                % The DC value for each block in raster order
-                obj.encodedDCCellArray = arrayfun(@(channelID)( ...
-                                                    arrayfun(@(x)(...
-                                                        EntropyCoding.encodeDCValue(x, huffmanCodesForDC{floor(channelID/2)+1}) ...
-                                                    ), obj.differentialDCCoefficients{channelID}, 'UniformOutput', false)...
-                                                ), 1:imageSize(3), 'UniformOutput', false);
-
-                % Huffman Code AC Values
-                % Ref: CCITT Rec. T.81 (1992 E) p.89
-                %   Luminance
-                codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
-                symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
-                huffmanCodesForAC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
-                %   Chroma
-                codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
-                symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-                huffmanCodesForAC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
-
-                % Note, at this point the zerosRunLengthCoding has already
-                % handled the special RS value cases, so the entries need
-                % simply encoding (-1 values are to be ignored)
-                obj.encodedACCellArray = arrayfun(@(channelID)( ...
-                                                    obj.encodeACCoefficientsOfChannel(channelID, huffmanCodesForAC{floor(channelID/2)+1}) ...
-                                                ), 1:imageSize(3), 'UniformOutput', false);
-
-                % Create the output bitstream
-                stream = obj.createBitStream();
-            else
-                obj.encodedDCCellArray = [];
-                obj.encodedDCCellArray = [];
-                obj.encodedDCCellArray = [];
-                stream = [];
-            end
         end
-    end
-
-    methods (Access='protected')
 
         % Helper Methods
         % TODO : make this a package function
