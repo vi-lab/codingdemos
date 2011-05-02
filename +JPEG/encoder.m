@@ -90,14 +90,13 @@ classdef encoder < handle
     methods
         function obj = encoder(source, varargin)
             % Construct object setting defaults
-            if exist('source','var')
-                obj.readInput(source);
-            end
             obj.setParameterDefaultValues;
-
             % Can set parameters on encoder
             if ~isempty(varargin)
                 obj.setCodingParameters(varargin{:});
+            end
+            if exist('source','var')
+                obj.readInput(source);
             end
         end
 
