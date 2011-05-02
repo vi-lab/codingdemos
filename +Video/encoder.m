@@ -10,6 +10,8 @@ classdef encoder < JPEG.encoder
 
     properties (SetObservable, SetAccess='protected')
         structureOfGOP
+        
+        GOPs
     end
 
     properties (Constant = true)
@@ -63,15 +65,15 @@ classdef encoder < JPEG.encoder
                         if obj.verbose; disp(['Read Video data from ''' obj.input.filePaths ''', frames: ' num2str(obj.input.startFrame) ' to ' num2str(obj.input.endFrame)]); end
                         obj.input.videoData = mmreader(obj.input.filePaths);
                         obj.imageMatrix = read(obj.input.videoData, [obj.input.startFrame obj.input.endFrame]);
+                        for i=1:size(obj.imageMatrix,4)
+                            obj.imageMatrix(:,:,:,i) = rgb2ycbcr(obj.imageMatrix(:,:,:,i));
+                        end
                     case 'imagerange'
                         if obj.verbose; disp(['Read image sequence from ''' obj.input.filePaths{1} ''' to ''' obj.input.filePaths{end} '''']); end
                         for i=1:length(obj.input.filePaths)
-                            obj.imageMatrix = cat(3, obj.imageMatrix, imread(obj.input.filePaths{i}));
+                            obj.imageMatrix = cat(4, obj.imageMatrix, rgb2ycbcr(imread(obj.input.filePaths{i})));
                         end
                 end
-                
-                % Convert to ycbcr
-                %arrayfun()
                 
             elseif isa(data, 'cell')
                 % cell array of frames, either subsampled or not
@@ -141,12 +143,24 @@ classdef encoder < JPEG.encoder
 
             % start encoding of video
             % for each frame in input call encode process for frametype
-            
-            for frameNumber = 1:size(obj.inputMatrix, 3)
+            obj.doReconstruction = true;
+
+            for timeMatrixIndex = 1:size(obj.imageMatrix, 4)
+                GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOP));
+                frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOP));
+                frameType = obj.structureOfGOP(frameIndex);
+                
+                if obj.verbose; if frameType == obj.I_FRAME; frameTypeText = 'I'; else; frameTypeText = 'P'; end; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' frameTypeText ' frame.']); end
                 
                 % 1) do subsampling
-
-                % 2) if I frame do coding as per JPEG (call methods on parent)
+                obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix(:,:,:,timeMatrixIndex), 'Mode', obj.chromaSamplingMode );
+                % 2) if I frame do coding as per JPEG (call methods on
+                % parent)
+                if frameType == obj.I_FRAME
+                    obj.transformCode();
+                    obj.GOPs{GOPIndex, frameIndex} = obj.reconstruction;
+                else
+                end
 
                 % 3) if P frame start MEC
 
