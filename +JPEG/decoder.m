@@ -568,10 +568,6 @@ classdef decoder < handle
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
 
-                    % To get current run lengths do
-                    % arrayfun(@(d)(bitshift(d,-4)), obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(:,1))
-                    %runLength
-
                     zerosLength = bitshift(valueForRS, -4);
 
                     c = c + 1;
@@ -594,32 +590,8 @@ classdef decoder < handle
 
         end
 
-        %{
         function decodeFromLogicalArray(obj)
-            % For each segment marker decode section
-            test1 = true;
-
-            numberOfBits = length(obj.inputStruct.binaryData);
-            currentBit = 1;
-
-            while test1
-                if Utilities.logicalToUnsignedDecimal(obj.inputStruct.binaryData(currentBit:currentBit+7)) == 255
-                    currentBit = currentBit + 8;
-
-                    %%%%%instead of conert do logical array compare
-
-                    switch(Utilities.logicalToUnsignedDecimal(obj.inputStruct.binaryData(currentBit:currentBit+7)))
-                        case 216 % FF D8 = 255 216 = Start of Image
-                            disp('SOI');
-                        case 217 % FF D9 = 255 217 = End of Image
-                            disp('EOI');
-                    end
-                end
-                currentBit = currentBit + 8;
-                test1 = (currentBit < numberOfBits);
-            end
         end
-        %}
 
    end
 end
