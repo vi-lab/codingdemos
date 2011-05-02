@@ -42,7 +42,7 @@ classdef encoder < handle
         chromaSamplingMode
     end
 
-    properties (SetObservable, SetAccess='private')
+    properties (SetObservable, SetAccess='protected')
 
         % If true the encoder will generate extra state to create a
         % reconstruction of the image with the given coding parameters up
@@ -387,7 +387,7 @@ classdef encoder < handle
         end
     end
 
-    methods (Access='private')
+    methods (Access='protected')
 
         function setCodingParameters(obj, varargin)
             for k=1:2:size(varargin,2)
