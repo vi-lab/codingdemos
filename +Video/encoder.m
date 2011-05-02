@@ -10,8 +10,10 @@ classdef encoder < JPEG.encoder
 
     properties (SetObservable, SetAccess='protected')
         structureOfGOP
-        
+        frameRate
         GOPs
+
+        reconstructedVideo
     end
 
     properties (Constant = true)
@@ -114,17 +116,17 @@ classdef encoder < JPEG.encoder
                 switch lower(varargin{k})
                     case 'gop'
                         obj.structureOfGOPString = varargin{k+1};
+                    case 'framerate'
+                        obj.frameRate = varargin{k+1};
                 end
             end
         end
 
         function setParameterDefaultValues(obj)
-            
             % WILL CALL TO SETCODING BE ON PARENT THO?
             obj.setParameterDefaultValues@JPEG.encoder();
-            
             % CALL SETCODING with defaults for extra params
-            obj.setCodingParameters('gop', 'ippp');
+            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 5);
         end
 
         function stream = encode(obj, varargin)
@@ -149,21 +151,31 @@ classdef encoder < JPEG.encoder
                 GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOP));
                 frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOP));
                 frameType = obj.structureOfGOP(frameIndex);
-                
-                if obj.verbose; if frameType == obj.I_FRAME; frameTypeText = 'I'; else; frameTypeText = 'P'; end; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' frameTypeText ' frame.']); end
-                
+
+                if obj.verbose; if frameType == obj.I_FRAME; frameTypeText = 'I'; else frameTypeText = 'P'; end; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' frameTypeText ' frame.']); end
+
                 % 1) do subsampling
                 obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix(:,:,:,timeMatrixIndex), 'Mode', obj.chromaSamplingMode );
-                % 2) if I frame do coding as per JPEG (call methods on
-                % parent)
+
                 if frameType == obj.I_FRAME
+                    % 2) if I frame do coding as per JPEG (call methods on
+                    % parent)
                     obj.transformCode();
-                    obj.GOPs{GOPIndex, frameIndex} = obj.reconstruction;
+                    if obj.doReconstruction
+                        obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
+                    end
+                    %obj.GOPs{GOPIndex, frameIndex} =
                 else
+                    % 3) if P frame start MEC
+                    % imageStruct should be set to DFD
+                    %obj.transformCode();
+                    if obj.doReconstruction
+                        %obj.reconstruction
+                        % MC
+                        %obj.reconstructedVideo{GOPIndex, frameIndex} = ;
+                    end
+                    %obj.GOPs{GOPIndex, frameIndex} =
                 end
-
-                % 3) if P frame start MEC
-
             end
             
             % Construct bitstream if desired
@@ -171,9 +183,22 @@ classdef encoder < JPEG.encoder
                 
             end
         end
+
+        function playInputVideo(obj, parent)
+            for k = 1 : size(obj.imageMatrix, 4)
+                mov(k).cdata = ycbcr2rgb(obj.imageMatrix(:,:,:,k));
+                mov(k).colormap = [];
+            end
+            %mov = immovie(rgbmovie);
+            if ~exist('parent', 'var')
+                parent = figure('Name', 'Movie Player', 'Position', [150 150 size(obj.imageMatrix, 2) size(obj.imageMatrix, 1)]);
+            end
+            %implay(mov, obj.frameRate);
+            movie(parent, mov, 1, obj.frameRate)
+        end
     end
 
-    methods (Access='private')
+    methods (Access='protected')
         
     end       
 end 
