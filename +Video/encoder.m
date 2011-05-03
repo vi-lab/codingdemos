@@ -27,7 +27,8 @@ classdef encoder < JPEG.encoder
             Hierarchical Search Algorithm (HSA)
             Diamond Search (DS)
         %}
-        blockMatchingAlgorithm
+        % A struct containing algorithm and parameters
+        blockMatching
         referenceFrameBuffer
         motionVectors
         predictionErrorFrame
@@ -139,6 +140,16 @@ classdef encoder < JPEG.encoder
                         obj.structureOfGOPString = varargin{k+1};
                     case 'framerate'
                         obj.frameRate = varargin{k+1};
+                    case 'blockmatching'
+                        obj.blockMatching.algorithm = varargin{k+1};
+                    case 'blockmatchingsearchdistance'
+                        obj.blockMatching.maximumSearchDistance = varargin{k+1};
+                    case 'macroblocksize'
+                        obj.blockMatching.blockSize = varargin{k+1};
+                    case 'blockmatchingverbose'
+                        obj.blockMatching.verbose = varargin{k+1};
+                    case 'blockmatchingdifferencecalculation'
+                        obj.blockMatching.differenceCalculation = varargin{k+1};
                 end
             end
         end
@@ -147,7 +158,9 @@ classdef encoder < JPEG.encoder
             % WILL CALL TO SETCODING BE ON PARENT THO?
             obj.setParameterDefaultValues@JPEG.encoder();
             % CALL SETCODING with defaults for extra params
-            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 5);
+            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 5, ...
+                'BlockMatching', 'FSA', 'BlockMatchingSearchDistance', 8, ...
+                'MacroBlockSize', 16, 'BlockMatchingVerbose', false, 'BlockMatchingDifferenceCalculation', 'SAD');
         end
 
         function stream = encode(obj, varargin)
@@ -204,7 +217,7 @@ classdef encoder < JPEG.encoder
                     [obj.motionVectors{GOPIndex, frameIndex} obj.predictionErrorFrame{GOPIndex, frameIndex}] = ...
                             MotionEstimation.createMotionVectorsAndPredictionError(  obj.imageStruct, ...
                                                                                 obj.referenceFrameBuffer, ...
-                                                                                obj.blockMatchingAlgorithm);
+                                                                                obj.blockMatching);
                     obj.imageStruct = Subsampling.ycbcrImageToSubsampled(obj.predictionErrorFrame{GOPIndex, frameIndex}, 'Mode', obj.chromaSamplingMode );
                     obj.transformCode();
 
