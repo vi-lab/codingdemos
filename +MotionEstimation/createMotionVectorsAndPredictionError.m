@@ -18,8 +18,8 @@ switch lower(blockMatching.differenceCalculation)
         blockMatching.matchFunction = @MotionEstimation.meanOfSquaredDifference;
 end
 
-inp = Subsampling.subsampledToYCbCrImage(inputImageStruct);
-ref = Subsampling.subsampledToYCbCrImage(referenceFrameStruct);
+inp = double(Subsampling.subsampledToYCbCrImage(inputImageStruct));
+ref = double(Subsampling.subsampledToYCbCrImage(referenceFrameStruct));
 [motionVectors predictionError] = searchAlgorithm(inp, ref, blockMatching);
 
 end

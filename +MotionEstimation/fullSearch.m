@@ -3,6 +3,8 @@ function [motionVectors predictionError] = fullSearch(inputImageMatrix, referenc
 %   Detailed explanation goes here
 
 bs = blockMatching.blockSize;
+ms = blockMatching.maximumSearchDistance;
+matchFunction = blockMatching.matchFunction;
 
 predictionError = zeros(size(inputImageMatrix));
 
@@ -28,16 +30,16 @@ for blockIndex = 1:nX
     for refBlockIndex = 1:nI
         i = I(refBlockIndex);
         j = J(refBlockIndex);
-        xref = x + (i - blockMatching.maximumSearchDistance);
-        yref = y + (j - blockMatching.maximumSearchDistance);
+        xref = x + (i - ms);
+        yref = y + (j - ms);
         if xref < 1 || yref < 1 || xref > inputW-bs || yref > inputH-bs
             continue;
         end
         block1 = inputImageMatrix(y:y+bs-1,x:x+bs-1,:);
         block2 = referenceFrameMatrix(yref:yref+bs-1,xref:xref+bs-1,:);
-        [matchError errorSurface] = blockMatching.matchFunction(block1, block2);
+        [matchError errorSurface] = matchFunction(block1, block2);
         if  matchError < motionVectors(bx,by,3)
-            motionVectors(bx,by,:) = [(i - blockMatching.maximumSearchDistance), (j - blockMatching.maximumSearchDistance), matchError];
+            motionVectors(bx,by,:) = [(i - ms), (j - ms), matchError];
             predictionError(y:y+bs-1,x:x+bs-1,:) = errorSurface;
         end
     end

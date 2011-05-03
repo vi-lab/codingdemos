@@ -4,12 +4,8 @@ classdef encoder < JPEG.encoder
 %
 % Copyright 2011, Stephen Ierodiaconou, University of Bristol.
 
-    properties (SetObservable)
-        structureOfGOPString
-    end
-
     properties (SetObservable, SetAccess='protected')
-        structureOfGOP
+        structureOfGOPString
         frameRate
         GOPs
 
@@ -35,11 +31,6 @@ classdef encoder < JPEG.encoder
         reconstructedPredictionErrorFrame
 
         reconstructedVideo
-    end
-
-    properties (Constant = true)
-        I_FRAME = 0;
-        P_FRAME = 1;
     end
 
     methods
@@ -112,23 +103,6 @@ classdef encoder < JPEG.encoder
                 throw(MException('Video.encoder:input', 'Input can be: 4d matrix, a string image path prefix and range of frames of sequential group (e.g. /path/to/images/i:01:99:.jpg for images named images ''i01.jpg'' to ''i99.jpg''), a cell array of images or a path to an AVI file and the frame range to load (e.g. /path/to/test.avi:10:20)'));
             end
         end
-        
-        function set.structureOfGOPString(obj, data)
-            % decode structure string 'ipppp'
-            if isa(data, 'char')
-                obj.structureOfGOPString = data;
-                obj.structureOfGOP = ones(1, length(data)) .* obj.I_FRAME;
-                if ~strcmpi(data(1), 'i')
-                    throw(MException('Video.encoder:structureOfGOPString', 'The GOP structure must start with an I frame.'));
-                end
-                obj.structureOfGOP(lower(data) == 'p') = obj.P_FRAME;
-
-                if obj.verbose; disp(['GOP structure: ' upper(data) ', (' num2str(nnz(lower(data) == 'p')) ' P frames)']); end
-            else
-                throw(MException('Video.encoder:structureOfGOPString', 'The input image data must be a string of the form ''ippppp''.'));
-            end
-
-        end
 
         function setCodingParameters(obj, varargin)
             % call JPEG parents
@@ -137,7 +111,7 @@ classdef encoder < JPEG.encoder
             for k=1:2:size(varargin,2)
                 switch lower(varargin{k})
                     case 'gop'
-                        obj.structureOfGOPString = varargin{k+1};
+                        obj.structureOfGOPString = lower(varargin{k+1});
                     case 'framerate'
                         obj.frameRate = varargin{k+1};
                     case 'blockmatching'
@@ -185,7 +159,7 @@ classdef encoder < JPEG.encoder
             obj.doReconstruction = true;
             obj.reconstructedVideo = uint8(zeros(size(obj.imageMatrix)));
 
-            numberOfFramesPerGOP = length(obj.structureOfGOP);
+            numberOfFramesPerGOP = length(obj.structureOfGOPString);
             numberOfGOPs = ceil(size(obj.imageMatrix, 4)/numberOfFramesPerGOP);
             if obj.verbose; disp(['Number of frames: ' num2str(size(obj.imageMatrix, 4)) ', in ' num2str(numberOfGOPs) ' GOPs with ' num2str(numberOfFramesPerGOP) ' frames per GOP']); end
 
@@ -193,16 +167,16 @@ classdef encoder < JPEG.encoder
             obj.predictionErrorFrame = cell(numberOfGOPs,numberOfFramesPerGOP);
 
             for timeMatrixIndex = 1:size(obj.imageMatrix, 4)
-                GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOP));
-                frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOP));
-                frameType = obj.structureOfGOP(frameIndex);
+                GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
+                frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
+                frameType = obj.structureOfGOPString(frameIndex);
 
-                if obj.verbose; if frameType == obj.I_FRAME; frameTypeText = 'I'; else frameTypeText = 'P'; end; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' frameTypeText ' frame.']); end
+                if obj.verbose; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' upper(frameType) ' frame.']); end
 
                 % 1) do subsampling
                 obj.imageStruct = Subsampling.ycbcrImageToSubsampled( obj.imageMatrix(:,:,:,timeMatrixIndex), 'Mode', obj.chromaSamplingMode );
 
-                if frameType == obj.I_FRAME
+                if strcmp(frameType,'i')
                     % 2) if I frame do coding as per JPEG (call methods on
                     % parent)
                     obj.transformCode();
@@ -218,6 +192,9 @@ classdef encoder < JPEG.encoder
                             MotionEstimation.createMotionVectorsAndPredictionError(  obj.imageStruct, ...
                                                                                 obj.referenceFrameBuffer, ...
                                                                                 obj.blockMatching);
+
+                    % get DFD into range HEAVY QUANT!
+                    obj.predictionErrorFrame{GOPIndex, frameIndex} = (obj.predictionErrorFrame{GOPIndex, frameIndex}+255)/2;
                     obj.imageStruct = Subsampling.ycbcrImageToSubsampled(obj.predictionErrorFrame{GOPIndex, frameIndex}, 'Mode', obj.chromaSamplingMode );
                     obj.transformCode();
 
@@ -226,7 +203,7 @@ classdef encoder < JPEG.encoder
 
                     obj.reconstruction = MotionEstimation.reconstructFrame(obj.motionVectors{GOPIndex, frameIndex}, ...
                                                                             obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}, ...
-                                                                            obj.referenceFrameBuffer);
+                                                                            obj.referenceFrameBuffer, obj.blockMatching);
 
                     obj.referenceFrameBuffer = obj.reconstruction;
 
@@ -242,7 +219,7 @@ classdef encoder < JPEG.encoder
             end
         end
 
-        function playVideo(obj, matrix, title, parent)
+        function playVideo(obj, matrix, varargin)
             % matrix can be a char, either 'in' or 'out'
             if isa(matrix, 'char')
                 switch lower(matrix)
@@ -256,15 +233,81 @@ classdef encoder < JPEG.encoder
                 mov(k).cdata = ycbcr2rgb(matrix(:,:,:,k));
                 mov(k).colormap = [];
             end
+
+            % FIXME: check types
+            for k=1:2:size(varargin,2)
+                switch lower(varargin{k})
+                    case 'parent'
+                        parent = varargin{k+1};
+                    case 'title'
+                        title = varargin{k+1};
+                    case 'framerate'
+                        frameRate = varargin{k+1};
+                    case {'showmotionvectors', 'showmvs', 'showmv'}
+                        showMotionVectors = varargin{k+1};
+                    case 'manualcontrol'
+                        manualControl = varargin{k+1};
+                end
+            end
+            if ~exist('title', 'var')
+                title = 'Movie Player';
+            end
             %mov = immovie(rgbmovie);
             if ~exist('parent', 'var')
-                if ~exist('parent', 'var')
-                    title = 'Movie Player';
-                end
                 parent = figure('Name', title, 'Position', [150 150 size(matrix, 2) size(matrix, 1)]);
+                % display 1st frame to create axes
+                imshow(ycbcr2rgb(matrix(:,:,:,1)));
             end
-            %implay(mov, obj.frameRate);
-            movie(parent, mov, 1, obj.frameRate)
+            if ~exist('frameRate', 'var')
+                frameRate = obj.frameRate;
+            end
+            if ~exist('showMotionVectors', 'var')
+                showMotionVectors = false;
+            end
+            if ~exist('manualControl', 'var')
+                manualControl = false;
+            end
+            if showMotionVectors
+                disp('When showing with motion vectors the UI will lock up as movie is displayed with for-loop.');
+
+                for timeMatrixIndex=1:size(matrix, 4)
+                    GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
+                    frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
+
+                    imshow(ycbcr2rgb(matrix(:,:,:,timeMatrixIndex)), 'Parent', get(parent, 'CurrentAxes'));
+                    hold on;
+                    mVs = obj.motionVectors{GOPIndex, frameIndex};
+                    bs = obj.blockMatching.blockSize;
+                    inputW = size(mVs,1)*bs;
+                    inputH = size(mVs,2)*bs;
+                    [X, Y] = meshgrid(1:bs:inputW, 1:bs:inputH);
+                    nX = numel(X);
+                    x = zeros(nX,1); y = zeros(nX,1); u = zeros(nX,1); v = zeros(nX,1);
+                    for blockIndex = 1:nX
+                        x(blockIndex) = X(blockIndex);
+                        y(blockIndex) = Y(blockIndex);
+                        bx = ceil(x(blockIndex)/bs);
+                        by = ceil(y(blockIndex)/bs);
+                        mv = mVs(bx,by,:);
+                        u(blockIndex) = mv(1);
+                        v(blockIndex) = mv(2);
+                    end
+                    infoText = ['Frame: ' num2str(timeMatrixIndex) ' (GOP: ' num2str(GOPIndex) ', frame: ' num2str(frameIndex) ') - ' upper(obj.structureOfGOPString(frameIndex)) ' frame.'];
+                    set(parent, 'Name', [title ' - ' infoText]);
+                    %text(1, 1, infoText, 'Parent', get(parent, 'CurrentAxes'),'FontSize', 18, 'Color', [1 1 1], 'FontWeight', 'bold', 'BackgroundColor', [0.3 0.3 0.3]);
+                    quiver(get(parent, 'CurrentAxes'), x, y, u, v);
+                    hold off;
+                    if manualControl
+                        pause
+                    else
+                        pause(1/frameRate);
+                    end
+                end
+
+            else
+                %implay(mov, obj.frameRate);
+                movie(parent, mov, 1, frameRate)
+            end
         end
     end
 
