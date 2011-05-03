@@ -62,6 +62,7 @@ classdef encoder < JPEG.encoder
                     otherwise
                         throw(MException('Video.encoder:input', 'String inputs must follow the following format: an image path prefix and range of frames of sequential group (e.g. /path/to/images/i:01:99:.jpg for images named images ''i01.jpg'' to ''i99.jpg''), or a path to an AVI file and the frame range to load (e.g. /path/to/test.avi:10:20)'));
                 end
+                obj.imageMatrix = [];
                 switch obj.input.inputType
                     case 'videorange'
                         if obj.verbose; disp(['Read Video data from ''' obj.input.filePaths ''', frames: ' num2str(obj.input.startFrame) ' to ' num2str(obj.input.endFrame)]); end
@@ -145,7 +146,11 @@ classdef encoder < JPEG.encoder
 
             % start encoding of video
             % for each frame in input call encode process for frametype
+
+            % Reconstruction is made as this is the closed loop nature of
+            % modern video codecs
             obj.doReconstruction = true;
+            obj.reconstructedVideo = uint8(zeros(size(obj.imageMatrix)));
 
             for timeMatrixIndex = 1:size(obj.imageMatrix, 4)
                 GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOP));
@@ -161,37 +166,49 @@ classdef encoder < JPEG.encoder
                     % 2) if I frame do coding as per JPEG (call methods on
                     % parent)
                     obj.transformCode();
-                    if obj.doReconstruction
-                        obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
-                    end
+
+                    %obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
+                    obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
                     %obj.GOPs{GOPIndex, frameIndex} =
                 else
                     % 3) if P frame start MEC
                     % imageStruct should be set to DFD
-                    %obj.transformCode();
-                    if obj.doReconstruction
-                        %obj.reconstruction
-                        % MC
-                        %obj.reconstructedVideo{GOPIndex, frameIndex} = ;
-                    end
+                    obj.transformCode();
+
+                    %obj.reconstruction
+                    % MC
+                    %obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
+                    obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
                     %obj.GOPs{GOPIndex, frameIndex} =
                 end
             end
-            
+
             % Construct bitstream if desired
             if obj.isEnabledStage.entropyCoding
                 
             end
         end
 
-        function playInputVideo(obj, parent)
-            for k = 1 : size(obj.imageMatrix, 4)
-                mov(k).cdata = ycbcr2rgb(obj.imageMatrix(:,:,:,k));
+        function playVideo(obj, matrix, title, parent)
+            % matrix can be a char, either 'in' or 'out'
+            if isa(matrix, 'char')
+                switch lower(matrix)
+                    case 'in'
+                        matrix = obj.imageMatrix;
+                    case 'out'
+                        matrix = obj.reconstructedVideo;
+                end
+            end
+            for k = 1 : size(matrix, 4)
+                mov(k).cdata = ycbcr2rgb(matrix(:,:,:,k));
                 mov(k).colormap = [];
             end
             %mov = immovie(rgbmovie);
             if ~exist('parent', 'var')
-                parent = figure('Name', 'Movie Player', 'Position', [150 150 size(obj.imageMatrix, 2) size(obj.imageMatrix, 1)]);
+                if ~exist('parent', 'var')
+                    title = 'Movie Player';
+                end
+                parent = figure('Name', title, 'Position', [150 150 size(matrix, 2) size(matrix, 1)]);
             end
             %implay(mov, obj.frameRate);
             movie(parent, mov, 1, obj.frameRate)
