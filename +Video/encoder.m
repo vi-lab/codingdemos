@@ -13,6 +13,26 @@ classdef encoder < JPEG.encoder
         frameRate
         GOPs
 
+        % Support algorithms:
+        %{
+            From http://en.wikipedia.org/wiki/Block-matching_algorithm
+            Cross Search Algorithm (CSA)
+            Full Search Algorithm (FSA)
+            Spiral Search
+            Three Step Search
+            Two Dimensional Logarithmic Search (TDL)
+            Binary Search (BS)
+            Four Step Search (FSS)
+            Orthogonal Search Algorithm (OSA)
+            Hierarchical Search Algorithm (HSA)
+            Diamond Search (DS)
+        %}
+        blockMatchingAlgorithm
+        referenceFrameBuffer
+        motionVectors
+        predictionErrorFrame
+        reconstructedPredictionErrorFrame
+
         reconstructedVideo
     end
 
@@ -152,6 +172,13 @@ classdef encoder < JPEG.encoder
             obj.doReconstruction = true;
             obj.reconstructedVideo = uint8(zeros(size(obj.imageMatrix)));
 
+            numberOfFramesPerGOP = length(obj.structureOfGOP);
+            numberOfGOPs = ceil(size(obj.imageMatrix, 4)/numberOfFramesPerGOP);
+            if obj.verbose; disp(['Number of frames: ' num2str(size(obj.imageMatrix, 4)) ', in ' num2str(numberOfGOPs) ' GOPs with ' num2str(numberOfFramesPerGOP) ' frames per GOP']); end
+
+            obj.motionVectors = cell(numberOfGOPs,numberOfFramesPerGOP);
+            obj.predictionErrorFrame = cell(numberOfGOPs,numberOfFramesPerGOP);
+
             for timeMatrixIndex = 1:size(obj.imageMatrix, 4)
                 GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOP));
                 frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOP));
@@ -167,16 +194,29 @@ classdef encoder < JPEG.encoder
                     % parent)
                     obj.transformCode();
 
+                    obj.referenceFrameBuffer = obj.reconstruction;
+
                     %obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
                     obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
                     %obj.GOPs{GOPIndex, frameIndex} =
                 else
                     % 3) if P frame start MEC
-                    % imageStruct should be set to DFD
+                    [obj.motionVectors{GOPIndex, frameIndex} obj.predictionErrorFrame{GOPIndex, frameIndex}] = ...
+                            MotionEstimation.createMotionVectorsAndPredictionError(  obj.imageStruct, ...
+                                                                                obj.referenceFrameBuffer, ...
+                                                                                obj.blockMatchingAlgorithm);
+                    obj.imageStruct = Subsampling.ycbcrImageToSubsampled(obj.predictionErrorFrame{GOPIndex, frameIndex}, 'Mode', obj.chromaSamplingMode );
                     obj.transformCode();
 
-                    %obj.reconstruction
-                    % MC
+                    % Reconstruct frame
+                    obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex} = obj.reconstruction;
+
+                    obj.reconstruction = MotionEstimation.reconstructFrame(obj.motionVectors{GOPIndex, frameIndex}, ...
+                                                                            obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}, ...
+                                                                            obj.referenceFrameBuffer);
+
+                    obj.referenceFrameBuffer = obj.reconstruction;
+
                     %obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
                     obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
                     %obj.GOPs{GOPIndex, frameIndex} =
