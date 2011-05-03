@@ -30,6 +30,8 @@ classdef encoder < JPEG.encoder
         predictionErrorFrame
         reconstructedPredictionErrorFrame
 
+        frameStatistics
+
         reconstructedVideo
     end
 
@@ -207,10 +209,11 @@ classdef encoder < JPEG.encoder
 
                     obj.referenceFrameBuffer = obj.reconstruction;
 
-                    %obj.reconstructedVideo{GOPIndex, frameIndex} = obj.reconstruction;
                     obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
-                    %obj.GOPs{GOPIndex, frameIndex} =
                 end
+                % Stats
+                obj.frameStatistics{timeMatrixIndex}.psnr = Utilities.peakSignalToNoiseRatio(obj.reconstructedVideo(:,:,1, timeMatrixIndex), obj.imageMatrix(:,:,1, timeMatrixIndex));
+                if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(obj.frameStatistics{timeMatrixIndex}.psnr)]); end
             end
 
             % Construct bitstream if desired
@@ -229,10 +232,6 @@ classdef encoder < JPEG.encoder
                         matrix = obj.reconstructedVideo;
                 end
             end
-            for k = 1 : size(matrix, 4)
-                mov(k).cdata = ycbcr2rgb(matrix(:,:,:,k));
-                mov(k).colormap = [];
-            end
 
             % FIXME: check types
             for k=1:2:size(varargin,2)
@@ -243,6 +242,8 @@ classdef encoder < JPEG.encoder
                         title = varargin{k+1};
                     case 'framerate'
                         frameRate = varargin{k+1};
+                    case 'showresidual'
+                        showResidual = varargin{k+1};
                     case {'showmotionvectors', 'showmvs', 'showmv'}
                         showMotionVectors = varargin{k+1};
                     case 'manualcontrol'
@@ -264,9 +265,13 @@ classdef encoder < JPEG.encoder
             if ~exist('showMotionVectors', 'var')
                 showMotionVectors = false;
             end
+            if ~exist('showResidual', 'var')
+                showResidual = false;
+            end
             if ~exist('manualControl', 'var')
                 manualControl = false;
             end
+
             if showMotionVectors
                 disp('When showing with motion vectors the UI will lock up as movie is displayed with for-loop.');
 
@@ -274,7 +279,12 @@ classdef encoder < JPEG.encoder
                     GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
                     frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
 
-                    imshow(ycbcr2rgb(matrix(:,:,:,timeMatrixIndex)), 'Parent', get(parent, 'CurrentAxes'));
+                    if showResidual && ~isempty(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex})
+                        Subsampling.subsampledImageShow(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}, ...
+                                'Parent', get(parent, 'CurrentAxes')); %, 'Channel', 'y');
+                    else
+                        imshow(ycbcr2rgb(matrix(:,:,:,timeMatrixIndex)), 'Parent', get(parent, 'CurrentAxes'));
+                    end
                     hold on;
                     mVs = obj.motionVectors{GOPIndex, frameIndex};
                     bs = obj.blockMatching.blockSize;
@@ -303,10 +313,25 @@ classdef encoder < JPEG.encoder
                         pause(1/frameRate);
                     end
                 end
-
+            elseif showResidual
+                for timeMatrixIndex=1:size(matrix, 4)
+                    GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
+                    frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
+                    if ~isempty(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex})
+                        %Subsampling.subsampledImageShow(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}, 'Parent', get(parent, 'CurrentAxes'), 'Channel', 'y');
+                        mov(timeMatrixIndex).cdata = ycbcr2rgb(Subsampling.subsampledToYCbCrImage(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}));
+                    else
+                        mov(timeMatrixIndex).cdata = ycbcr2rgb(matrix(:,:,:,k));
+                    end
+                    mov(timeMatrixIndex).colormap = [];
+                end
+                movie(parent, mov, 1, frameRate);
             else
-                %implay(mov, obj.frameRate);
-                movie(parent, mov, 1, frameRate)
+                for k = 1 : size(matrix, 4)
+                    mov(k).cdata = ycbcr2rgb(matrix(:,:,:,k));
+                    mov(k).colormap = [];
+                end
+                movie(parent, mov, 1, frameRate);
             end
         end
     end
