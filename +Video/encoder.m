@@ -279,7 +279,8 @@ classdef encoder < JPEG.encoder
                     GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
                     frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
 
-                    if showResidual && ~isempty(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex})
+                    if showResidual && size(obj.reconstructedPredictionErrorFrame, 1) >= GOPIndex && size(obj.reconstructedPredictionErrorFrame, 2) >= frameIndex && ...
+                            ~isempty(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex})
                         Subsampling.subsampledImageShow(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}, ...
                                 'Parent', get(parent, 'CurrentAxes')); %, 'Channel', 'y');
                     else
