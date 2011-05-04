@@ -26,7 +26,10 @@ classdef encoder < JPEG.encoder
         % A struct containing algorithm and parameters
         blockMatching
         referenceFrameBuffer
+
+        frameData
         motionVectors
+
         predictionErrorFrame
         reconstructedPredictionErrorFrame
 
@@ -161,17 +164,17 @@ classdef encoder < JPEG.encoder
             obj.doReconstruction = true;
             obj.reconstructedVideo = uint8(zeros(size(obj.imageMatrix)));
 
-            numberOfFramesPerGOP = length(obj.structureOfGOPString);
-            numberOfGOPs = ceil(size(obj.imageMatrix, 4)/numberOfFramesPerGOP);
-            if obj.verbose; disp(['Number of frames: ' num2str(size(obj.imageMatrix, 4)) ', in ' num2str(numberOfGOPs) ' GOPs with ' num2str(numberOfFramesPerGOP) ' frames per GOP']); end
+            obj.GOPs.numberOfFramesPerGOP = length(obj.structureOfGOPString);
+            obj.GOPs.count = ceil(size(obj.imageMatrix, 4)/obj.GOPs.numberOfFramesPerGOP);
+            obj.GOPs.length(1:obj.GOPs.count) = obj.GOPs.numberOfFramesPerGOP;
+            obj.GOPs.length(end) = rem(size(obj.imageMatrix, 4), obj.GOPs.numberOfFramesPerGOP);
+            if obj.verbose; disp(['Number of frames: ' num2str(size(obj.imageMatrix, 4)) ', in ' num2str(obj.GOPs.count) ' GOPs with ' num2str(obj.GOPs.numberOfFramesPerGOP) ' frames per GOP']); end
 
-            obj.motionVectors = cell(numberOfGOPs,numberOfFramesPerGOP);
-            obj.predictionErrorFrame = cell(numberOfGOPs,numberOfFramesPerGOP);
+            obj.motionVectors = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
+            obj.predictionErrorFrame = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
 
             for timeMatrixIndex = 1:size(obj.imageMatrix, 4)
-                GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
-                frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
-                frameType = obj.structureOfGOPString(frameIndex);
+                [GOPIndex frameIndex frameType] = obj.getGOPAndFrameIndex(timeMatrixIndex);
 
                 if obj.verbose; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' upper(frameType) ' frame.']); end
 
@@ -181,7 +184,11 @@ classdef encoder < JPEG.encoder
                 if strcmp(frameType,'i')
                     % 2) if I frame do coding as per JPEG (call methods on
                     % parent)
-                    obj.transformCode();
+                    obj.transformAndEntropyCode();
+
+                    % Store frame data
+                    obj.frameData{GOPIndex, frameIndex}.encodedDCCellArray = obj.encodedDCCellArray;
+                    obj.frameData{GOPIndex, frameIndex}.encodedACCellArray = obj.encodedACCellArray;
 
                     obj.referenceFrameBuffer = obj.reconstruction;
 
@@ -198,7 +205,12 @@ classdef encoder < JPEG.encoder
                     % get DFD into range HEAVY QUANT!
                     obj.predictionErrorFrame{GOPIndex, frameIndex} = (obj.predictionErrorFrame{GOPIndex, frameIndex}+255)/2;
                     obj.imageStruct = Subsampling.ycbcrImageToSubsampled(obj.predictionErrorFrame{GOPIndex, frameIndex}, 'Mode', obj.chromaSamplingMode );
-                    obj.transformCode();
+
+                    obj.transformAndEntropyCode();
+
+                    % Store frame data
+                    obj.frameData{GOPIndex, frameIndex}.encodedDCCellArray = obj.encodedDCCellArray;
+                    obj.frameData{GOPIndex, frameIndex}.encodedACCellArray = obj.encodedACCellArray;
 
                     % Reconstruct frame
                     obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex} = obj.reconstruction;
@@ -216,9 +228,15 @@ classdef encoder < JPEG.encoder
                 if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(obj.frameStatistics{timeMatrixIndex}.psnr)]); end
             end
 
-            % Construct bitstream if desired
             if obj.isEnabledStage.entropyCoding
-                
+                % *********************************************************
+                % *********************************************************
+                % ************************** CODE MVS
+            end
+            
+            % Construct bitstream if desired
+            if obj.isEnabledStage.createBitStream
+                stream = obj.createBitStream();
             end
         end
 
@@ -276,8 +294,7 @@ classdef encoder < JPEG.encoder
                 disp('When showing with motion vectors the UI will lock up as movie is displayed with for-loop.');
 
                 for timeMatrixIndex=1:size(matrix, 4)
-                    GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
-                    frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
+                    [GOPIndex frameIndex frameType] = obj.getGOPAndFrameIndex(timeMatrixIndex);
 
                     if showResidual && size(obj.reconstructedPredictionErrorFrame, 1) >= GOPIndex && size(obj.reconstructedPredictionErrorFrame, 2) >= frameIndex && ...
                             ~isempty(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex})
@@ -316,8 +333,8 @@ classdef encoder < JPEG.encoder
                 end
             elseif showResidual
                 for timeMatrixIndex=1:size(matrix, 4)
-                    GOPIndex = ceil(timeMatrixIndex/length(obj.structureOfGOPString));
-                    frameIndex = timeMatrixIndex - ((GOPIndex-1)*length(obj.structureOfGOPString));
+                    [GOPIndex frameIndex frameType] = obj.getGOPAndFrameIndex(timeMatrixIndex);
+
                     if ~isempty(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex})
                         %Subsampling.subsampledImageShow(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}, 'Parent', get(parent, 'CurrentAxes'), 'Channel', 'y');
                         mov(timeMatrixIndex).cdata = ycbcr2rgb(Subsampling.subsampledToYCbCrImage(obj.reconstructedPredictionErrorFrame{GOPIndex, frameIndex}));
@@ -338,6 +355,136 @@ classdef encoder < JPEG.encoder
     end
 
     methods (Access='protected')
-        
+
+        function [GOPIndex frameIndex frameType] = getGOPAndFrameIndex(obj, timeMatrixIndex)
+            GOPIndex = ceil(timeMatrixIndex/obj.GOPs.numberOfFramesPerGOP);
+            frameIndex = timeMatrixIndex - ((GOPIndex-1)*obj.GOPs.numberOfFramesPerGOP);
+            frameType = obj.structureOfGOPString(frameIndex);
+        end
+
+        function stream = createBitStream(obj)
+            % Stream format
+            %{
+                VideoHeader:
+                    Start of Video Marker
+                    GOP structure (1 byte) P per gop (assumed 1 I frame first)
+                    FPS (1 byte)
+                    Motion Vectors Huffman Table
+                    JPEG FRAME HEADER (includes width/height/number of channels/tables)
+                GOP Header:
+                    Start of GOP Marker
+                I Frame:
+                    Start of I-Frame Marker
+                    JPEG SCAN SEGMENT Y
+                    JPEG SCAN SEGMENT Cb
+                    JPEG SCAN SEGMENT Cr
+                {P-Frame:}
+                    Start of P-Frame Marker
+                    JPEG SCAN SEGMENT Y
+                    JPEG SCAN SEGMENT Cb
+                    JPEG SCAN SEGMENT Cr
+                    Motion Vectors Segment:
+                        MV Segment Marker
+                        Length in bytes (2 bytes)
+                        Entropy coded Data
+            
+                End of Video Marker
+            %}
+
+            videoHeader         = obj.createBitStreamForVideoHeader();
+
+            % ************* padArray
+            mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable();
+
+            mvTableLength       = Utilities.decimalToShort(length(ceil(mvTableBits/8)));
+
+            % JPEG Frame header
+            % All frames in the video use the same info from here about
+            % number of channels, subsampling mode and tables for channel
+            jpegFrameHeader     = obj.createBitStreamForFrameHeader();
+            quantisationTables = obj.createBitStreamForQuantisationTables();
+            huffmanTables = obj.createBitStreamForHuffmanTables();
+
+            frameBits           = obj.createBitStreamForFrames();
+
+            endOfVideoMarker    = Utilities.hexToShort('FFBF'); % Use a JPEG reserved marker
+
+            stream = cat(2, ...
+                videoHeader, ...
+                mvTableLength, ...
+                mvTableBits, ...
+                jpegFrameHeader, ...
+                quantisationTables, ...
+                huffmanTables, ...
+                frameBits,...
+                endOfVideoMarker ...
+                );
+            
+        end
+
+        function bits = createBitStreamForMotionVectorHuffmanTable(obj)
+            bits = [];
+        end
+
+        function bits = createBitStreamForVideoHeader(obj)
+            markerStartOfVideo  = Utilities.hexToShort('FFB0'); % Use a JPEG reserved marker
+
+            gopStructure        = Utilities.decimalToShort(nnz(obj.structureOfGOPString == 'p'));
+
+            fpsValue            = Utilities.decimalToByte(obj.frameRate);
+
+            bits = cat(2, ...
+                markerStartOfVideo, ...
+                gopStructure, ...
+                fpsValue ...
+                );
+        end
+
+        function bits = createBitStreamForFrames(obj)
+            bits = [];
+            for GOPIndex=1:obj.GOPs.count
+                startOfGOPMarker     = Utilities.hexToShort('FFB1');
+                gopBits = [];
+                for frameIndex=1:obj.GOPs.length(GOPIndex)
+                    % restore data for encoding
+                    obj.encodedACCellArray = obj.frameData{GOPIndex, frameIndex}.encodedACCellArray;
+                    obj.encodedDCCellArray = obj.frameData{GOPIndex, frameIndex}.encodedDCCellArray;
+
+                    frameBits = obj.createBitStreamForPixelData();
+
+                    if obj.structureOfGOPString(frameIndex) == 'i'
+                        startOfFrameMarker      = Utilities.hexToShort('FFB2');
+                        gopBits = cat(2, gopBits, ...
+                            startOfFrameMarker, ...
+                            frameBits ...
+                            );
+                    else
+                        startOfFrameMarker      = Utilities.hexToShort('FFB3');
+                        
+                        mvBits = obj.createBitStreamForMotionVectorsForFrame(GOPIndex, frameIndex);
+                        mvSegmentMarker         = Utilities.hexToShort('FFB4'); 
+                        mvSegmentLength         = ceil(length(mvBits)/8);
+                        gopBits = cat(2, gopBits, ...
+                            startOfFrameMarker, ...
+                            frameBits, ...
+                            mvSegmentMarker, ...
+                            mvSegmentLength, ...
+                            mvBits ...
+                            );
+                    end
+                end
+                bits = cat(2, bits, ...
+                    startOfGOPMarker, ...
+                    gopBits ...
+                    );
+            end
+        end
+
+        function mvBits = createBitStreamForMotionVectorsForFrame(obj, GOPIndex, frameIndex)
+            %obj.motionVectors{GOPIndex, frameIndex}
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            mvBits = logical([1 1 1]);
+        end
     end       
 end 
