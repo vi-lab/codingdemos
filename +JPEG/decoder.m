@@ -169,8 +169,7 @@ classdef decoder < handle
                                                                 blocksWithACAndDCCoefficientsReordered{c},'UniformOutput',false);
 
                 % Reshape
-                d = floor(sqrt(length(blocksWithACCoefficientsReordered{c})));
-                quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, d, d).');
+                quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, obj.componentSizeInBlocks{c}(1), obj.componentSizeInBlocks{c}(2)).');
 
                 % Dequantise
                 dequantisedChannel{c} = blkproc(quantisedChannel{c}, [8 8], ...
