@@ -164,16 +164,21 @@ classdef encoder < JPEG.encoder
             obj.doReconstruction = true;
             obj.reconstructedVideo = uint8(zeros(size(obj.imageMatrix)));
 
+            % GOP/Frame info
+            obj.GOPs.totalNumberOfFramesInVideo = size(obj.imageMatrix, 4);
             obj.GOPs.numberOfFramesPerGOP = length(obj.structureOfGOPString);
-            obj.GOPs.count = ceil(size(obj.imageMatrix, 4)/obj.GOPs.numberOfFramesPerGOP);
+            obj.GOPs.count = ceil(obj.GOPs.totalNumberOfFramesInVideo/obj.GOPs.numberOfFramesPerGOP);
             obj.GOPs.length(1:obj.GOPs.count) = obj.GOPs.numberOfFramesPerGOP;
-            obj.GOPs.length(end) = rem(size(obj.imageMatrix, 4), obj.GOPs.numberOfFramesPerGOP);
+            remFrames = rem(obj.GOPs.totalNumberOfFramesInVideo, obj.GOPs.numberOfFramesPerGOP);
+            if remFrames
+                obj.GOPs.length(end) = remFrames;
+            end
             if obj.verbose; disp(['Number of frames: ' num2str(size(obj.imageMatrix, 4)) ', in ' num2str(obj.GOPs.count) ' GOPs with ' num2str(obj.GOPs.numberOfFramesPerGOP) ' frames per GOP']); end
 
             obj.motionVectors = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
             obj.predictionErrorFrame = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
 
-            for timeMatrixIndex = 1:size(obj.imageMatrix, 4)
+            for timeMatrixIndex = 1:obj.GOPs.totalNumberOfFramesInVideo
                 [GOPIndex frameIndex frameType] = obj.getGOPAndFrameIndex(timeMatrixIndex);
 
                 if obj.verbose; disp(['Start encoding frame ' num2str(frameIndex) ' of GOP ' num2str(GOPIndex) ' as ' upper(frameType) ' frame.']); end
@@ -423,7 +428,7 @@ classdef encoder < JPEG.encoder
         end
 
         function bits = createBitStreamForMotionVectorHuffmanTable(obj)
-            bits = [];
+            bits = logical([]);
         end
 
         function bits = createBitStreamForVideoHeader(obj)
@@ -441,10 +446,10 @@ classdef encoder < JPEG.encoder
         end
 
         function bits = createBitStreamForFrames(obj)
-            bits = [];
+            bits = logical([]);
             for GOPIndex=1:obj.GOPs.count
                 startOfGOPMarker     = Utilities.hexToShort('FFB1');
-                gopBits = [];
+                gopBits = logical([]);
                 for frameIndex=1:obj.GOPs.length(GOPIndex)
                     % restore data for encoding
                     obj.encodedACCellArray = obj.frameData{GOPIndex, frameIndex}.encodedACCellArray;
@@ -463,7 +468,7 @@ classdef encoder < JPEG.encoder
                         
                         mvBits = obj.createBitStreamForMotionVectorsForFrame(GOPIndex, frameIndex);
                         mvSegmentMarker         = Utilities.hexToShort('FFB4'); 
-                        mvSegmentLength         = ceil(length(mvBits)/8);
+                        mvSegmentLength         = Utilities.decimalToByte(ceil(length(mvBits)/8));
                         gopBits = cat(2, gopBits, ...
                             startOfFrameMarker, ...
                             frameBits, ...
