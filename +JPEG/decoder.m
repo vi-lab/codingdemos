@@ -537,7 +537,6 @@ classdef decoder < handle
             % convert to logical and start matching to Huffman Codes
             % NON-INTERLEAVED
 
-
             % HERE WE WILL END UP WITH BLOCKS but still RLZ and DC DIffed
             currentByte = startByte;
             % Cur bit starts at 0 as its incremented at start of call to
@@ -549,7 +548,6 @@ classdef decoder < handle
 
             for i=1:totalBlocks(1)*totalBlocks(2)
                 % For given block
-
                 % DC Category Huffman decode
                 [categoryOfDCDiff currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForDC, maxCodeForDC, valueTablePointerForDC, HUFFVALDC );
 

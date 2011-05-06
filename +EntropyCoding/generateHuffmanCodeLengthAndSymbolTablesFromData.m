@@ -7,11 +7,9 @@ function [ HUFFVAL, BITS ] = generateHuffmanCodeLengthAndSymbolTablesFromData( d
 % Count data
 FREQ = zeros(1,257);
 FREQ(257) = 1;
-FREQ(1:256) = hist(double(data(:)), 0.5:1:255.5);
+FREQ(1:256) = hist(double(data(:)), 0:1:255);
 CODESIZE = zeros(1,257);
 OTHERS = ones(1,257).*-1;
-
-
 
 condition1 = true;
 
@@ -107,23 +105,23 @@ end
 BITS(17:end) = [];
 
 %Sort_input
-HUFFVAL = [];
+HUFFVAL = zeros(1,256);
 I = 1;
 K = 1;
 condition1 = true;
 while condition1
-    J = 1;
+    J = 0;
     condition2 = true;
     while condition2
-        if CODESIZE(J) == I
+        if CODESIZE(J+1) == I
             HUFFVAL(K) = J; 
             K = K + 1;
         end
         J = J + 1;
-        condition2 = (J <= 256);
+        condition2 = (J <= 255);
     end
     I = I + 1;
     condition1 = (I <= 32);
 end
-
+HUFFVAL(K:end) = [];
 end
