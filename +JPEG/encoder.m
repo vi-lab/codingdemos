@@ -350,12 +350,12 @@ classdef encoder < handle
                                     blkproc(coeffs, [1 64], @TransformCoding.zerosRunLengthCoding)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
             end
+
             % Get a list of DC coefficient for each channel
             if obj.isEnabledStage.differentialDC
                 obj.DCCoefficients = cellfun(@(coeffs)(...
-                                    blkproc(coeffs, [1 64], @TransformCoding.returnDCCoefficient)...
+                                    coeffs(:, 1:64:end)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
-
                 % Differentially code the DC value
                 obj.differentialDCCoefficients = cellfun(@(coeffs)(...
                                     TransformCoding.differentiallyCodeDC(coeffs)...
@@ -385,20 +385,21 @@ classdef encoder < handle
 
             % Perform entropy coding
             if obj.isEnabledStage.entropyCoding
+
+                % Huffman Code DC Values
                 if obj.isEnabledStage.customHuffmanTables
+                    % Custom tables from data statistics
+                    %
                     % If enabled create custom huffman tables
                     % The symbols for DC are actually the length in bits of
                     % the data value
                     % For luminance channel
                     data = ceil( log2(abs(obj.differentialDCCoefficients{1}) + 1) );
                     [obj.huffmanDCSymbolValues.luminance, obj.huffmanDCCodeLengths.luminance] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
-                    huffmanCodesForDC{1} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.luminance, obj.huffmanDCSymbolValues.luminance);
                     % For the chroma channels
                     data = ceil( log2(abs([obj.differentialDCCoefficients{2} obj.differentialDCCoefficients{3}]) + 1) );
-                    [obj.huffmanDCSymbolValues.chroma, obj.huffmanDCCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );                    
-                    huffmanCodesForDC{2} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.chroma, obj.huffmanDCSymbolValues.chroma);
+                    [obj.huffmanDCSymbolValues.chroma, obj.huffmanDCCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
                 else
-                    % Huffman Code DC Values
                     % Ref: CCITT Rec. T.81 (1992 E) p.88
                     %
                     % The following generates the table of Huffman codes which
@@ -407,53 +408,43 @@ classdef encoder < handle
                     % of a code consisting only of 1s.
                     obj.huffmanDCCodeLengths.luminance     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
                     obj.huffmanDCSymbolValues.luminance    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
-                    huffmanCodesForDC{1} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.luminance, obj.huffmanDCSymbolValues.luminance);
                     % The Chroma DC Huffman code table for the 12 categories
                     obj.huffmanDCCodeLengths.chroma     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
                     obj.huffmanDCSymbolValues.chroma    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
-                    huffmanCodesForDC{2} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.chroma, obj.huffmanDCSymbolValues.chroma);
                 end
+                huffmanCodesForDC{1} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.luminance, obj.huffmanDCSymbolValues.luminance);
+                huffmanCodesForDC{2} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.chroma, obj.huffmanDCSymbolValues.chroma);
 
                 % The DC value for each block in raster order
                 obj.encodedDCCellArray = arrayfun(@(channelID)( ...
                                     EntropyCoding.encodeDCValues(obj.differentialDCCoefficients{channelID}, huffmanCodesForDC{floor(channelID/2)+1}) ...
                                 ), 1:imageSize(3), 'UniformOutput', false);
 
+                % Huffman Code AC Values
                 if obj.isEnabledStage.customHuffmanTables
                     % If enabled create custom huffman tables
-                    % the data is the RS values
+                    % The data huffman coded by the table is the RS values.
                     %{
-                    lengthInBits = ceil( log2(abs(value) + 1) );
-                    RS = (runLength * 16) + lengthInBits;
+                    rsValues = {1}
+                    [obj.huffmanACSymbolValues.luminance, obj.huffmanACCodeLengths.luminance] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( rsValues );
+                    % For the chroma channels
+                    rsValues = {2} + {3}
+                    [obj.huffmanACSymbolValues.chroma, obj.huffmanACCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( rsValues );
                     %}
-                    %{
-                    lengths = ceil( log2(abs(obj.differentialDCCoefficients{1}) + 1) );
-                    [symbolValues, codeLengths] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
-                    huffmanCodesForAC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
-
-                    data = ceil( log2(abs([obj.differentialDCCoefficients{2} obj.differentialDCCoefficients{3}]) + 1) );
-                    [symbolValues, codeLengths] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
-                    huffmanCodesForAC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
-                    %}
-                    obj.huffmanACCodeLengths.luminance  = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
-                    obj.huffmanACSymbolValues.luminance = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
-                    huffmanCodesForAC{1} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.luminance, obj.huffmanACSymbolValues.luminance);
-                    %   Chroma
-                    obj.huffmanACCodeLengths.chroma     = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
-                    obj.huffmanACSymbolValues.chroma    = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-                    huffmanCodesForAC{2} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.chroma, obj.huffmanACSymbolValues.chroma);
                 else
-                    % Huffman Code AC Values
                     % Ref: CCITT Rec. T.81 (1992 E) p.89
+                    % Using the stardard Huffman code tables
+
                     %   Luminance
                     obj.huffmanACCodeLengths.luminance  = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
                     obj.huffmanACSymbolValues.luminance = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
-                    huffmanCodesForAC{1} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.luminance, obj.huffmanACSymbolValues.luminance);
                     %   Chroma
                     obj.huffmanACCodeLengths.chroma     = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
                     obj.huffmanACSymbolValues.chroma    = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-                    huffmanCodesForAC{2} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.chroma, obj.huffmanACSymbolValues.chroma);
                 end
+                huffmanCodesForAC{1} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.luminance, obj.huffmanACSymbolValues.luminance);
+                huffmanCodesForAC{2} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.chroma, obj.huffmanACSymbolValues.chroma);
+
                 % Note, at this point the zerosRunLengthCoding has already
                 % handled the special RS value cases, so the entries need
                 % simply encoding (-1 values are to be ignored)
