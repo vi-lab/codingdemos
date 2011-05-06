@@ -13,8 +13,8 @@ function [ binary ] = decimalToLogical( dec, lengthInBits )
 %       lengthInBits: the size of the bytes to create in number of bits
 %   Returns -
 %       binary: if 'dec' is a single number then the output is the logical
-%               array result, else a cell array is returned containing the
-%               binary results for each value of 'dec'
+%               array result, else a matrix is returned containing the
+%               binary results on each row for each value of 'dec'
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
