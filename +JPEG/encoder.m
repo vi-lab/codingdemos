@@ -389,10 +389,11 @@ classdef encoder < handle
                     % If enabled create custom huffman tables
                     % The symbols for DC are actually the length in bits of
                     % the data value
+                    % For luminance channel
                     data = ceil( log2(abs(obj.differentialDCCoefficients{1}) + 1) );
                     [obj.huffmanDCSymbolValues.luminance, obj.huffmanDCCodeLengths.luminance] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
                     huffmanCodesForDC{1} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.luminance, obj.huffmanDCSymbolValues.luminance);
-
+                    % For the chroma channels
                     data = ceil( log2(abs([obj.differentialDCCoefficients{2} obj.differentialDCCoefficients{3}]) + 1) );
                     [obj.huffmanDCSymbolValues.chroma, obj.huffmanDCCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );                    
                     huffmanCodesForDC{2} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.chroma, obj.huffmanDCSymbolValues.chroma);
@@ -407,7 +408,6 @@ classdef encoder < handle
                     obj.huffmanDCCodeLengths.luminance     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
                     obj.huffmanDCSymbolValues.luminance    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
                     huffmanCodesForDC{1} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.luminance, obj.huffmanDCSymbolValues.luminance);
-
                     % The Chroma DC Huffman code table for the 12 categories
                     obj.huffmanDCCodeLengths.chroma     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
                     obj.huffmanDCSymbolValues.chroma    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
@@ -416,10 +416,8 @@ classdef encoder < handle
 
                 % The DC value for each block in raster order
                 obj.encodedDCCellArray = arrayfun(@(channelID)( ...
-                                                    arrayfun(@(x)(...
-                                                        EntropyCoding.encodeDCValue(x, huffmanCodesForDC{floor(channelID/2)+1}) ...
-                                                    ), obj.differentialDCCoefficients{channelID}, 'UniformOutput', false)...
-                                                ), 1:imageSize(3), 'UniformOutput', false);
+                                    EntropyCoding.encodeDCValues(obj.differentialDCCoefficients{channelID}, huffmanCodesForDC{floor(channelID/2)+1}) ...
+                                ), 1:imageSize(3), 'UniformOutput', false);
 
                 if obj.isEnabledStage.customHuffmanTables
                     % If enabled create custom huffman tables
