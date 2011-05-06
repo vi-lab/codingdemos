@@ -11,6 +11,10 @@ if ~exist('padValue', 'var')
 end
 
 padLength = byteLength - rem(length(array), byteLength);
+if padLength < byteLength
+    paddedArray = cat(2, array, logical(ones(1, padLength).*padValue));
+else
+    paddedArray = array;
+end
 
-paddedArray = cat(2, array, logical(ones(1, padLength).*padValue));
 end
