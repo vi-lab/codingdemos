@@ -399,6 +399,7 @@ classdef encoder < handle
                     % For the chroma channels
                     data = ceil( log2(abs([obj.differentialDCCoefficients{2} obj.differentialDCCoefficients{3}]) + 1) );
                     [obj.huffmanDCSymbolValues.chroma, obj.huffmanDCCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
+                    clear data
                 else
                     % Ref: CCITT Rec. T.81 (1992 E) p.88
                     %
@@ -424,13 +425,20 @@ classdef encoder < handle
                 if obj.isEnabledStage.customHuffmanTables
                     % If enabled create custom huffman tables
                     % The data huffman coded by the table is the RS values.
-                    %{
-                    rsValues = {1}
+                    blocks = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{1}.', 126, []).';
+                    rsValues = blocks(:,1:63); % take only RS values
+                    rsValues(rsValues < 0) = []; % remove any unset values
                     [obj.huffmanACSymbolValues.luminance, obj.huffmanACCodeLengths.luminance] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( rsValues );
                     % For the chroma channels
-                    rsValues = {2} + {3}
+                    blocks = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{2}.', 126, []).';
+                    rsValues = blocks(:,1:63);
+                    rsValues(rsValues < 0) = [];
+                    blocks = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{3}.', 126, []).';
+                    rsValues1 = blocks(:,1:63);
+                    rsValues1(rsValues1 < 0) = [];
+                    rsValues = [rsValues rsValues1];
                     [obj.huffmanACSymbolValues.chroma, obj.huffmanACCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( rsValues );
-                    %}
+                    clear blocks rsValues rsValues1
                 else
                     % Ref: CCITT Rec. T.81 (1992 E) p.89
                     % Using the stardard Huffman code tables
@@ -495,7 +503,7 @@ classdef encoder < handle
                 idx = blockStartIndexes(i);
                 lengths = flatCoeffs(idx:idx+62);
                 values = flatCoeffs(idx+63:idx+125);
-                lastIndex = find( lengths == -1, 1);
+                lastIndex = find( lengths < 0, 1);
                 lengths = lengths(1:lastIndex - 1);
                 values = values(1:lastIndex - 1);
                 encodedArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodes)), ...

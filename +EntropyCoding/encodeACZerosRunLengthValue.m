@@ -1,4 +1,4 @@
-function [ encodedLogicalBitArray ] = encodeACZerosRunLengthValue( runLength, value, huffmanTable )
+function [ encodedLogicalBitArray ] = encodeACZerosRunLengthValue( RS, value, huffmanTable )
 %ENCODEACZEROSRUNLENGTHVALUE Summary of this function goes here
 %   Detailed explanation goes here
 %
@@ -22,15 +22,12 @@ function [ encodedLogicalBitArray ] = encodeACZerosRunLengthValue( runLength, va
 % end of the block (ie there are no more RS values for this
 % block.
 
-if runLength == 0 && value == 0
+if RS == 0
     % EOB : end of block marker
     encodedLogicalBitArray = huffmanTable{1};
 else
-    % This could be optimised as a look up table
-    lengthInBits = ceil( log2(abs(value) + 1) );
-
-    %RSbinary = Utilities.decimalNibblesToByte(runLength, lengthInBits)
-    RS = (runLength * 16) + lengthInBits;
+    % See TransformCoding to see how the JPEG RS values are calculated.
+    lengthInBits = bitand(RS, 15);
 
     % For AC coeffs the magnitude can be up to 10 bits long
     % Ref: CCITT Rec. T.81 (1992 E) p.90

@@ -43,13 +43,18 @@ for block=1:size(coeffs, 1)
                 vs = ones(1,fifteensNeeded(i)).*15;
                 zs = zeros(1,fifteensNeeded(i));
                  % insert and remove last 2 values which will be -1s
-                runLengths = [runLengths(1:i-1) vs runLengths(i:end - 1)];
-                values = [values(1:i-1) zs values(i:end - 1)];
+                runLengths = [runLengths(1:i-1) vs runLengths(i:end - length(vs))];
+                values = [values(1:i-1) zs values(i:end - length(zs))];
             end
         end
     end
 
-    rlcData(block,:) = [runLengths values];
+    % Generate RS values
+    % This could be optimised as a look up table
+    lengthInBits = ceil( log2(abs(values) + 1) );
+    RS = (runLengths .* 16) + lengthInBits;
+
+    rlcData(block,:) = [RS values];
 end
 
 rlcDataBlock = reshape(rlcData.', [], size(coeffsBlock,1)).'; % now 1 row per block
