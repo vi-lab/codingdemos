@@ -169,8 +169,7 @@ classdef decoder < handle
                                                                 blocksWithACAndDCCoefficientsReordered{c},'UniformOutput',false);
 
                 % Reshape
-                d = floor(sqrt(length(blocksWithACCoefficientsReordered{c})));
-                quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, d, d).');
+                quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, obj.componentSizeInBlocks{c}(1), obj.componentSizeInBlocks{c}(2)).');
 
                 % Dequantise
                 dequantisedChannel{c} = blkproc(quantisedChannel{c}, [8 8], ...
@@ -538,7 +537,6 @@ classdef decoder < handle
             % convert to logical and start matching to Huffman Codes
             % NON-INTERLEAVED
 
-
             % HERE WE WILL END UP WITH BLOCKS but still RLZ and DC DIffed
             currentByte = startByte;
             % Cur bit starts at 0 as its incremented at start of call to
@@ -550,7 +548,6 @@ classdef decoder < handle
 
             for i=1:totalBlocks(1)*totalBlocks(2)
                 % For given block
-
                 % DC Category Huffman decode
                 [categoryOfDCDiff currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForDC, maxCodeForDC, valueTablePointerForDC, HUFFVALDC );
 
@@ -567,10 +564,6 @@ classdef decoder < handle
                 while acLength < 63
                     % decode RS value
                     [valueForRS currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForAC, maxCodeForAC, valueTablePointerForAC, HUFFVALAC );
-
-                    % To get current run lengths do
-                    % arrayfun(@(d)(bitshift(d,-4)), obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(:,1))
-                    %runLength
 
                     zerosLength = bitshift(valueForRS, -4);
 
@@ -594,32 +587,8 @@ classdef decoder < handle
 
         end
 
-        %{
         function decodeFromLogicalArray(obj)
-            % For each segment marker decode section
-            test1 = true;
-
-            numberOfBits = length(obj.inputStruct.binaryData);
-            currentBit = 1;
-
-            while test1
-                if Utilities.logicalToUnsignedDecimal(obj.inputStruct.binaryData(currentBit:currentBit+7)) == 255
-                    currentBit = currentBit + 8;
-
-                    %%%%%instead of conert do logical array compare
-
-                    switch(Utilities.logicalToUnsignedDecimal(obj.inputStruct.binaryData(currentBit:currentBit+7)))
-                        case 216 % FF D8 = 255 216 = Start of Image
-                            disp('SOI');
-                        case 217 % FF D9 = 255 217 = End of Image
-                            disp('EOI');
-                    end
-                end
-                currentBit = currentBit + 8;
-                test1 = (currentBit < numberOfBits);
-            end
         end
-        %}
 
    end
 end

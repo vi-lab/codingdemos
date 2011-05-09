@@ -1,34 +1,45 @@
 classdef encoder < handle
-%JPEG.ENCODER Implementation of JPEG Encoder
-%Detailed explanation goes here
+%JPEG.ENCODER Implementation of a JPEG encoder body
 %
-%   JPEG.encoder.m
+%   +JPEG/encoder.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   JPEG.encoder Properties:
-%       * inputImageData - first property
-%       * imageMatrix - first property
+%   JPEG.encoder main properties:
+%    * verbose (r/w): boolean to set state of verbose output to console
+%    * input (r/w): the input image data. This parameter has a setter
+%    method that determines the type of the data set to it to perform the
+%    appropriate action. Can be set to a string filename, an image matrix
+%    or a subsampled image structure.
+%    * qualityFactor (r/w): an integer in the range 0-100 indicating the
+%    quality of the JPEG to create, as per the IJG's JPEG implementation
+%    * chromaSamplingMode (r/w): a string indicating the subsampling mode,
+%    e.g. '4:2:0'
+%    * output (r): the output data bitstream
+%    * reconstruction (r): if 'doReconstruction' is true then this is set
+%    to the YCbCr subsampled image structure of the reconstructed inverse
+%    quantised/transformed data.
 %
-%   JPEG.encoder Methods:
-%       * JPEG.encoder() - Constructor takes optional source parameter
-%
+%   JPEG.encoder public methods:
+%    * encoder(source): Constructor takes optional source filename
+%    * encode(parameters): Actual encode procedure, returns a logical or
+%    numeric array of the output bitstream.
+%    * encodeToFile(filename, parameters): Actual encode procedure with
+%    specific output file for bitstream. Returns boolean to indicate
+%    success.
 %
 %   Example commands:
 %       obj = JPEG.encoder('exampleImages/lena_color_256.bmp','DoEntropyCoding', false, 'DoReconstruction', true, 'Verbose', true);
-%       obj.encode('Verbose', false);
+%       bits = obj.encode();
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
-    properties (SetObservable)
+    properties (SetObservable, SetAccess='protected')
         input
 
         qualityFactor
         chromaSamplingMode
-    end
-
-    properties (SetObservable, SetAccess='private')
 
         % If true the encoder will generate extra state to create a
         % reconstruction of the image with the given coding parameters up
@@ -64,6 +75,12 @@ classdef encoder < handle
         zerosRunLengthCodedOrderedACCoefficients
         DCCoefficients
         differentialDCCoefficients
+
+        huffmanDCCodeLengths
+        huffmanDCSymbolValues
+        huffmanACCodeLengths
+        huffmanACSymbolValues
+
         encodedDCCellArray
         encodedACCellArray
 
@@ -79,18 +96,18 @@ classdef encoder < handle
     methods
         function obj = encoder(source, varargin)
             % Construct object setting defaults
-            if exist('source','var')
-                obj.input = source;
-            end
             obj.setParameterDefaultValues;
-
             % Can set parameters on encoder
             if ~isempty(varargin)
                 obj.setCodingParameters(varargin{:});
             end
+            if exist('source','var')
+                obj.readInput(source);
+            end
         end
 
-        function set.input(obj, data)
+        %function set.input(obj, data)
+        function readInput(obj, data)
             if exist('data', 'var') && ~isempty(data)
                 %if source is a string read file, if its a matrix is image, if struct is struct image
                 if isa(data, 'char')
@@ -111,21 +128,9 @@ classdef encoder < handle
             end
         end
 
-        function set.qualityFactor(obj, data)
-            obj.qualityFactor = data;
-
-            % TODO: RESET ALL OTHER DATA WHICH IS NOW INVALID
-        end
-
-        function set.chromaSamplingMode(obj, data)
-            obj.chromaSamplingMode = data;
-
-            % TODO: RESET ALL OTHER DATA WHICH IS NOW INVALID
-        end
-
         function setParameterDefaultValues(obj)
             obj.setCodingParameters('quality', 60, 'subsampling', '4:2:0', ...
-                'DoEntropyCoding', true, 'DoReconstruction', true, 'DoRunLengthCoding', true, 'DoReordering', true, 'DoDCDifferentials', true, ...
+                'DoEntropyCoding', true, 'DoBitStream', true, 'DoCustomHuffmanTables', false, 'DoReconstruction', false, 'DoRunLengthCoding', true, 'DoReordering', true, 'DoDCDifferentials', true, ...
                 'Verbose', false, 'BuiltIns', false);
         end
 
@@ -150,14 +155,19 @@ classdef encoder < handle
                         obj.isEnabledStage.runLengthCoding = c;
                         obj.isEnabledStage.differentialDC = c;
                         obj.isEnabledStage.entropyCoding = c;
+                        obj.isEnabledStage.createBitStream = c;
                     case 'dorunlengthcoding'
                         obj.isEnabledStage.runLengthCoding = varargin{k+1};
                     case 'doreordering'
                         obj.isEnabledStage.reOrderingCoefficients = varargin{k+1};
                     case 'dodcdifferentials'
                         obj.isEnabledStage.differentialDC = varargin{k+1};
+                    case 'docustomhuffmantables'
+                        obj.isEnabledStage.customHuffmanTables = varargin{k+1};
                     case 'doentropycoding'
                         obj.isEnabledStage.entropyCoding = varargin{k+1};
+                    case 'dobitstream'
+                        obj.isEnabledStage.createBitStream = varargin{k+1};
                     case 'doreconstruction'
                         obj.doReconstruction = varargin{k+1};
                     case 'verbose'
@@ -230,12 +240,6 @@ classdef encoder < handle
 
             obj.setCodingParameters(varargin{:});
 
-            if obj.useBuiltInMethods
-                methods = struct('DCT', @dct2, 'IDCT', @idct2);
-            else
-                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
-            end
-
             if obj.isEnabledStage.entropyCoding; isCoding = 'on'; else isCoding = 'off'; end
             if obj.doReconstruction; isRec = 'on'; else isRec = 'off'; end
             if obj.verbose; disp(['Start encoding: (entropy coding: ' isCoding ', reconstruction: ' isRec ') -- Quality Factor: ' num2str(obj.qualityFactor) ', chroma sampling mode: ' obj.chromaSamplingMode]); end
@@ -272,6 +276,25 @@ classdef encoder < handle
             obj.luminanceScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.luminanceQuantisationTable, obj.qualityFactor);
             obj.chromaScaledQuantisationTable = TransformCoding.qualityFactorToQuantisationTable(TransformCoding.chromaQuantisationTable, obj.qualityFactor);
 
+            obj.transformAndEntropyCode();
+
+            if obj.isEnabledStage.createBitStream
+                % Create the output bitstream
+                stream = obj.createBitStream();
+            else
+                stream = [];
+            end
+        end
+    end
+
+    methods (Access='protected')
+
+        function transformAndEntropyCode(obj)
+            if obj.useBuiltInMethods
+                methods = struct('DCT', @dct2, 'IDCT', @idct2);
+            else
+                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
+            end
             % Perform the data level shift. This is part of the JPEG
             % standard. It helps reduce the magnitude of the DC coefficient
             % so it is in the order of magnitude of the data type used for
@@ -324,15 +347,15 @@ classdef encoder < handle
             % padding the unused values (lengths:values)
             if obj.isEnabledStage.runLengthCoding
                 obj.zerosRunLengthCodedOrderedACCoefficients = cellfun(@(coeffs)(...
-                                    blkproc(coeffs, [1 64], @TransformCoding.zerosRunLengthCoding)...
+                                    TransformCoding.zerosRunLengthCoding(coeffs)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
             end
+
             % Get a list of DC coefficient for each channel
             if obj.isEnabledStage.differentialDC
                 obj.DCCoefficients = cellfun(@(coeffs)(...
-                                    blkproc(coeffs, [1 64], @TransformCoding.returnDCCoefficient)...
+                                    coeffs(:, 1:64:end)...
                                 ), obj.orderedCoefficients, 'UniformOutput', false);
-
                 % Differentially code the DC value
                 obj.differentialDCCoefficients = cellfun(@(coeffs)(...
                                     TransformCoding.differentiallyCodeDC(coeffs)...
@@ -358,46 +381,77 @@ classdef encoder < handle
                 structImage = cell2struct(obj.inverseTransformedAndShiftedData, {'y', 'cb', 'cr'}, 2);
                 structImage.mode = obj.chromaSamplingMode;
                 obj.reconstruction = structImage;
-
             end
 
-            % Perform entropy coding and create the output file bitstream
-            % if desired.
+            % Perform entropy coding
             if obj.isEnabledStage.entropyCoding
 
                 % Huffman Code DC Values
-                % Ref: CCITT Rec. T.81 (1992 E) p.88
-                %
-                % The following generates the table of Huffman codes which
-                % represent the 12 luminance DC difference categories (or
-                % ranges). The codes are generated so that there is no chance
-                % of a code consisting only of 1s.
-                codeLengths     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
-                symbolValues    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
-                huffmanCodesForDC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
-
-                % The Chroma DC Huffman code table for the 12 categories
-                codeLengths     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
-                symbolValues    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
-                huffmanCodesForDC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
+                if obj.isEnabledStage.customHuffmanTables
+                    % Custom tables from data statistics
+                    %
+                    % If enabled create custom huffman tables
+                    % The symbols for DC are actually the length in bits of
+                    % the data value
+                    % For luminance channel
+                    data = ceil( log2(abs(obj.differentialDCCoefficients{1}) + 1) );
+                    [obj.huffmanDCSymbolValues.luminance, obj.huffmanDCCodeLengths.luminance] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
+                    % For the chroma channels
+                    data = ceil( log2(abs([obj.differentialDCCoefficients{2} obj.differentialDCCoefficients{3}]) + 1) );
+                    [obj.huffmanDCSymbolValues.chroma, obj.huffmanDCCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( data );
+                    clear data
+                else
+                    % Ref: CCITT Rec. T.81 (1992 E) p.88
+                    %
+                    % The following generates the table of Huffman codes which
+                    % represent the 12 luminance DC difference categories (or
+                    % ranges). The codes are generated so that there is no chance
+                    % of a code consisting only of 1s.
+                    obj.huffmanDCCodeLengths.luminance     = EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength;
+                    obj.huffmanDCSymbolValues.luminance    = EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode;
+                    % The Chroma DC Huffman code table for the 12 categories
+                    obj.huffmanDCCodeLengths.chroma     = EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength;
+                    obj.huffmanDCSymbolValues.chroma    = EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode;
+                end
+                huffmanCodesForDC{1} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.luminance, obj.huffmanDCSymbolValues.luminance);
+                huffmanCodesForDC{2} = obj.createHuffmanCodes(obj.huffmanDCCodeLengths.chroma, obj.huffmanDCSymbolValues.chroma);
 
                 % The DC value for each block in raster order
                 obj.encodedDCCellArray = arrayfun(@(channelID)( ...
-                                                    arrayfun(@(x)(...
-                                                        EntropyCoding.encodeDCValue(x, huffmanCodesForDC{floor(channelID/2)+1}) ...
-                                                    ), obj.differentialDCCoefficients{channelID}, 'UniformOutput', false)...
-                                                ), 1:imageSize(3), 'UniformOutput', false);
+                                    EntropyCoding.encodeDCValues(obj.differentialDCCoefficients{channelID}, huffmanCodesForDC{floor(channelID/2)+1}) ...
+                                ), 1:imageSize(3), 'UniformOutput', false);
 
                 % Huffman Code AC Values
-                % Ref: CCITT Rec. T.81 (1992 E) p.89
-                %   Luminance
-                codeLengths = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
-                symbolValues = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
-                huffmanCodesForAC{1} = obj.createHuffmanCodes(codeLengths, symbolValues);
-                %   Chroma
-                codeLengths = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
-                symbolValues = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
-                huffmanCodesForAC{2} = obj.createHuffmanCodes(codeLengths, symbolValues);
+                if obj.isEnabledStage.customHuffmanTables
+                    % If enabled create custom huffman tables
+                    % The data huffman coded by the table is the RS values.
+                    blocks = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{1}.', 126, []).';
+                    rsValues = blocks(:,1:63); % take only RS values
+                    rsValues(rsValues < 0) = []; % remove any unset values
+                    [obj.huffmanACSymbolValues.luminance, obj.huffmanACCodeLengths.luminance] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( rsValues );
+                    % For the chroma channels
+                    blocks = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{2}.', 126, []).';
+                    rsValues = blocks(:,1:63);
+                    rsValues(rsValues < 0) = [];
+                    blocks = reshape(obj.zerosRunLengthCodedOrderedACCoefficients{3}.', 126, []).';
+                    rsValues1 = blocks(:,1:63);
+                    rsValues1(rsValues1 < 0) = [];
+                    rsValues = [rsValues rsValues1];
+                    [obj.huffmanACSymbolValues.chroma, obj.huffmanACCodeLengths.chroma] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( rsValues );
+                    clear blocks rsValues rsValues1
+                else
+                    % Ref: CCITT Rec. T.81 (1992 E) p.89
+                    % Using the stardard Huffman code tables
+
+                    %   Luminance
+                    obj.huffmanACCodeLengths.luminance  = EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength;
+                    obj.huffmanACSymbolValues.luminance = EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode;
+                    %   Chroma
+                    obj.huffmanACCodeLengths.chroma     = EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength;
+                    obj.huffmanACSymbolValues.chroma    = EntropyCoding.ChromaACHuffmanSymbolValuesPerCode;
+                end
+                huffmanCodesForAC{1} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.luminance, obj.huffmanACSymbolValues.luminance);
+                huffmanCodesForAC{2} = obj.createHuffmanCodes(obj.huffmanACCodeLengths.chroma, obj.huffmanACSymbolValues.chroma);
 
                 % Note, at this point the zerosRunLengthCoding has already
                 % handled the special RS value cases, so the entries need
@@ -405,14 +459,9 @@ classdef encoder < handle
                 obj.encodedACCellArray = arrayfun(@(channelID)( ...
                                                     obj.encodeACCoefficientsOfChannel(channelID, huffmanCodesForAC{floor(channelID/2)+1}) ...
                                                 ), 1:imageSize(3), 'UniformOutput', false);
-
-                % Create the output bitstream
-                stream = obj.createBitStream();
             else
                 obj.encodedDCCellArray = [];
-                obj.encodedDCCellArray = [];
-                obj.encodedDCCellArray = [];
-                stream = [];
+                obj.encodedACCellArray = [];
             end
         end
 
@@ -454,7 +503,7 @@ classdef encoder < handle
                 idx = blockStartIndexes(i);
                 lengths = flatCoeffs(idx:idx+62);
                 values = flatCoeffs(idx+63:idx+125);
-                lastIndex = find( lengths == -1, 1);
+                lastIndex = find( lengths < 0, 1);
                 lengths = lengths(1:lastIndex - 1);
                 values = values(1:lastIndex - 1);
                 encodedArray{i} = arrayfun(@(runLength, value)(EntropyCoding.encodeACZerosRunLengthValue(runLength, value, huffmanCodes)), ...
@@ -569,6 +618,19 @@ classdef encoder < handle
             quantisationTables = obj.createBitStreamForQuantisationTables();
             huffmanTables = obj.createBitStreamForHuffmanTables();
 
+            pixelBits = obj.createBitStreamForPixelData();
+
+            stream = cat(2, markerStartOfImage, ... % SOI
+                quantisationTables, ... % Tables for this image
+                huffmanTables, ...
+                frameHeader, ...
+                pixelBits, ...
+                markerEndOfImage);  % EOI
+
+            obj.output = stream;
+        end
+
+        function bits = createBitStreamForPixelData(obj)
             % TODO: this needs to be modified to support single channel
             % images
 
@@ -580,20 +642,13 @@ classdef encoder < handle
 
             scanHeaderCr = obj.createBitStreamForScanHeaderForSingleChannel(3);
             entropyCodedSegmentCr = obj.createBitStreamForEntropyCodedDataForSingleChannel(3);
-
-            stream = cat(2, markerStartOfImage, ... % SOI
-                quantisationTables, ... % Tables for this image
-                huffmanTables, ...
-                frameHeader, ...
+            bits = cat(2, ...
                 scanHeaderY,...
                 entropyCodedSegmentY, ...
                 scanHeaderCb,...
                 entropyCodedSegmentCb, ...
                 scanHeaderCr,...
-                entropyCodedSegmentCr, ...
-            markerEndOfImage);  % EOI
-
-            obj.output = stream;
+                entropyCodedSegmentCr);
         end
 
         function bits = createBitStreamForEntropyCodedDataForSingleChannel(obj, channelID)
@@ -787,10 +842,10 @@ classdef encoder < handle
 
             % Lh - 4 tables * (17 bytes + numberOfValuesPerTable)
             segmentLength               = Utilities.decimalToShort(2 + ...
-                                            (17 + length(EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode)) + ...
-                                            (17 + length(EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode)) + ...
-                                            (17 + length(EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode)) + ...
-                                            (17 + length(EntropyCoding.ChromaACHuffmanSymbolValuesPerCode)));
+                                            (17 + length(obj.huffmanDCSymbolValues.luminance)) + ...
+                                            (17 + length(obj.huffmanACSymbolValues.luminance)) + ...
+                                            (17 + length(obj.huffmanDCSymbolValues.chroma)) + ...
+                                            (17 + length(obj.huffmanACSymbolValues.chroma)));
 
             % Per table:
             % Luminance (ID 0) DC
@@ -799,10 +854,10 @@ classdef encoder < handle
 
             % Li
             luminanceTableDCLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte,...
-                                                    EntropyCoding.LuminanceDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+                                                    obj.huffmanDCCodeLengths.luminance, 'UniformOutput', false));
             % Vi,j
             luminanceTableDCValues      = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.LuminanceDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+                                                    obj.huffmanDCSymbolValues.luminance, 'UniformOutput', false));
 
             % AC
             % Tc:Th
@@ -810,10 +865,10 @@ classdef encoder < handle
 
             % Li
             luminanceTableACLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.LuminanceACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+                                                    obj.huffmanACCodeLengths.luminance, 'UniformOutput', false));
             % Vi,j
             luminanceTableACValues      = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.LuminanceACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+                                                    obj.huffmanACSymbolValues.luminance, 'UniformOutput', false));
 
             % Chroma (ID 1) DC
             % Tc:Th
@@ -821,10 +876,10 @@ classdef encoder < handle
 
             % Li
             chromaTableDCLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.ChromaDCHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+                                                    obj.huffmanDCCodeLengths.chroma, 'UniformOutput', false));
             % Vi,j
             chromaTableDCValues         = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.ChromaDCHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+                                                    obj.huffmanDCSymbolValues.chroma, 'UniformOutput', false));
 
             % AC
             % Tc:Th
@@ -832,10 +887,10 @@ classdef encoder < handle
 
             % Li
             chromaTableACLengthCounts   = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.ChromaACHuffmanCodeCountPerCodeLength, 'UniformOutput', false));
+                                                    obj.huffmanACCodeLengths.chroma, 'UniformOutput', false));
             % Vi,j
             chromaTableACValues         = cell2mat( arrayfun(@Utilities.decimalToByte, ...
-                                                    EntropyCoding.ChromaACHuffmanSymbolValuesPerCode, 'UniformOutput', false));
+                                                    obj.huffmanACSymbolValues.chroma, 'UniformOutput', false));
 
             bits = cat(2, ...
                 markerDefineHuffmanTable, ...
