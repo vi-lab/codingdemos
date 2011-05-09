@@ -9,20 +9,6 @@ classdef encoder < JPEG.encoder
         frameRate
         GOPs
 
-        % Support algorithms:
-        %{
-            From http://en.wikipedia.org/wiki/Block-matching_algorithm
-            Cross Search Algorithm (CSA)
-            Full Search Algorithm (FSA)
-            Spiral Search
-            Three Step Search
-            Two Dimensional Logarithmic Search (TDL)
-            Binary Search (BS)
-            Four Step Search (FSS)
-            Orthogonal Search Algorithm (OSA)
-            Hierarchical Search Algorithm (HSA)
-            Diamond Search (DS)
-        %}
         % A struct containing algorithm and parameters
         blockMatching
         referenceFrameBuffer

@@ -26,7 +26,7 @@ for blockIndex = 1:nX
     bx = ceil(x/bs);
     by = ceil(y/bs);
     motionVectors(bx,by,:) = [0 0 10000000];
-
+    block1 = inputImageMatrix(y:y+bs-1,x:x+bs-1,:);
     for refBlockIndex = 1:nI
         i = I(refBlockIndex);
         j = J(refBlockIndex);
@@ -35,7 +35,6 @@ for blockIndex = 1:nX
         if xref < 1 || yref < 1 || xref > inputW-bs || yref > inputH-bs
             continue;
         end
-        block1 = inputImageMatrix(y:y+bs-1,x:x+bs-1,:);
         block2 = referenceFrameMatrix(yref:yref+bs-1,xref:xref+bs-1,:);
         [matchError errorSurface] = matchFunction(block1, block2);
         if  matchError < motionVectors(bx,by,3)

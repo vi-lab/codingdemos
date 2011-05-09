@@ -2,9 +2,17 @@ function [ motionVectors predictionError ] = createMotionVectorsAndPredictionErr
 %CREATEMOTIONVECTORSANDPREDICTIONERROR Summary of this function goes here
 %   Detailed explanation goes here
 
+% Support algorithms:
+%{
+    From http://en.wikipedia.org/wiki/Block-matching_algorithm
+    Full Search Algorithm (FSA)
+    Diamond Search Algorithm (DSA)
+%}
 switch blockMatching.algorithm
     case {'FSA', 'full', 'fullsearch'}
         searchAlgorithm = @MotionEstimation.fullSearch;
+    case {'DSA', 'diamond', 'diamondsearch'}
+        searchAlgorithm = @MotionEstimation.diamondSearch;
 end
 
 switch lower(blockMatching.differenceCalculation)
