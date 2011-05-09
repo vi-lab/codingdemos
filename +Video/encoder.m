@@ -374,10 +374,12 @@ classdef encoder < JPEG.encoder
                     Start of Video Marker
                     GOP structure (1 byte) P per gop (assumed 1 I frame first)
                     FPS (1 byte)
-                    Motion Vectors Huffman Table
-                    JPEG FRAME HEADER (includes width/height/number of channels/tables)
+                    Quantisation Tables
                 GOP Header:
                     Start of GOP Marker
+                    JPEG FRAME HEADER (includes width/height/number of channels and Huffman tables for I frame data)
+                    Huffman Tables for P-Frame data (AC/DC luma/chroma)
+                    Huffman Tables for MVs
                 I Frame:
                     Start of I-Frame Marker
                     JPEG SCAN SEGMENT Y
@@ -399,16 +401,16 @@ classdef encoder < JPEG.encoder
             videoHeader         = obj.createBitStreamForVideoHeader();
 
             % ************* padArray
-            mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable();
+            %mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable();
 
-            mvTableLength       = Utilities.decimalToShort(length(ceil(mvTableBits/8)));
+            %mvTableLength       = Utilities.decimalToShort(length(ceil(mvTableBits/8)));
 
             % JPEG Frame header
             % All frames in the video use the same info from here about
             % number of channels, subsampling mode and tables for channel
-            jpegFrameHeader     = obj.createBitStreamForFrameHeader();
+            %jpegFrameHeader     = obj.createBitStreamForFrameHeader();
             quantisationTables = obj.createBitStreamForQuantisationTables();
-            huffmanTables = obj.createBitStreamForHuffmanTables();
+            %huffmanTables = obj.createBitStreamForHuffmanTables();
 
             frameBits           = obj.createBitStreamForFrames();
 
@@ -416,11 +418,11 @@ classdef encoder < JPEG.encoder
 
             stream = cat(2, ...
                 videoHeader, ...
-                mvTableLength, ...
-                mvTableBits, ...
-                jpegFrameHeader, ...
+                ...%mvTableLength, ...
+                ...%mvTableBits, ...
+                ...%jpegFrameHeader, ...
                 quantisationTables, ...
-                huffmanTables, ...
+                ...%huffmanTables, ...
                 frameBits,...
                 endOfVideoMarker ...
                 );
@@ -478,7 +480,21 @@ classdef encoder < JPEG.encoder
                             );
                     end
                 end
+
+                % Code GOP
+                % --------
+                % JPEG Frame header
+                % All frames in the video use the same info from here about
+                % number of channels, subsampling mode and tables for channel
+                jpegFrameHeader     = obj.createBitStreamForFrameHeader();
+                huffmanTables       = obj.createBitStreamForHuffmanTables();
+                mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable();
+                mvTableLength       = Utilities.decimalToShort(length(ceil(mvTableBits/8)));
                 bits = cat(2, bits, ...
+                    jpegFrameHeader, ...
+                    mvTableLength, ...
+                    mvTableBits, ...
+                    huffmanTables, ...
                     startOfGOPMarker, ...
                     gopBits ...
                     );
