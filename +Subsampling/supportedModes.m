@@ -18,6 +18,9 @@ function [ modes ] = supportedModes( )
 %   The following reference provides a good introduction to this topic
 %   Ref: http://dougkerr.net/pumpkin/articles/Subsampling.pdf
 %
+%   Returns:
+%       modes: a cell array of mode strings
+%
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
