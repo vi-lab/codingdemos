@@ -1,8 +1,37 @@
 function [ HUFFVAL, BITS ] = generateHuffmanCodeLengthAndSymbolTablesFromData( data )
 %GENERATEHUFFMANCODELENGTHANDSYMBOLTABLESFROMDATA Summary of this function goes here
-%   Detailed explanation goes here
-
-% Ref: ISO/IEC 10918-1 : 1993(E), Section K.2, p. 144-148
+%
+%   +EntropyCoding/generateHuffmanCodeLengthAndSymbolTablesFromData.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Generates the 2 Huffman tables needed to generate the Huffman code
+%   table (as specified by the JPEG standard) for the data provided.
+%   From the data is extracted the symbols in the input and their
+%   relative frequency and this is used in the process described in
+%   the standard to generate the custom HUFFVAL & BITS tables for the
+%   current image. Creating Huffman code tables with the data provided
+%   means the code lengths are optimised for the actual data (unlike the
+%   tables provided in the standard that are optimised across a range of 
+%   natural input images) and thus gives the best compression performance.
+%   The input data will be something like either all the RS values for all
+%   coefficients of all blocks in a image channel, or the magnitude
+%   categories for all DC differential values for all blocks in a given
+%   channel.
+%   
+%   This method contains implementations of the methods Count_BITS,
+%   Adjust_BITS and Sort_input as specified in the standard.
+%
+%   Ref: ISO/IEC 10918-1 : 1993(E), Section K.2, p. 144-148
+%
+%   Parameters -
+%       data: the input data array (e.g. the RS values for all coefficients of all blocks of the luminance channel)
+%   Returns -
+%       HUFFVAL: the table of symbols for each Huffman code
+%       BITS: the Huffman codes counts per code length
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 % Count data
 FREQ = zeros(1,257);

@@ -1,13 +1,13 @@
 function [ table ] = LuminanceDCHuffmanSymbolValuesPerCode( )
-%LUMINANCEDCHUFFMANSYMBOLVALUESPERCODE The HUFFVALS array for the luminance DC Huffman tables
+%LUMINANCEDCHUFFMANSYMBOLVALUESPERCODE  The standard luminance DC Huffman Symbol value table
 %
 %   +EntropyCoding/ChromaACHuffmanCodeCountPerCodeLength.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   Ref: CCITT Rec. T.81 (1992 E) p. 158, Table K.3
+%   The symbol values for the luminance DC Huffman tables as recommended by
+%   the standard (the HUFFVALS array).
 %
-%   The HUFFVALS array for the luminance DC Huffman tables as recommended
-%   by the standard.
+%   Ref: CCITT Rec. T.81 (1992 E) p. 158, Table K.3
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
