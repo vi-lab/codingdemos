@@ -1,8 +1,25 @@
 function coefficients = coefficientOrdering( inputBlock, mode )
-%COEFFICIENTORDERING Summary of this function goes here
-%   Detailed explanation goes here
-
-% COMMENTS
+%COEFFICIENTORDERING Reorder coefficients according to the given mode
+%
+%   +TranformCoding/coefficientOrdering.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Reorder coefficients of the input block by the given mode (zig-zag by
+%   default) and return a vector of order coefficients. If you wish to
+%   reconstruct a block from ordered coefficients use the 'de' versions
+%   of the modes. In this case inputBlock will be a vector.
+%
+%   Ref: CCITT Rec. T.81 (1992 E) p. 16, Figure 5
+%
+%   Parameters -
+%       inputBlock: the input block of DCT coefficients
+%       mode: the reordering mode string, 'zigzag', 'sequential', 'dezigzag', 'desequential'
+%   Returns -
+%       coefficients: the ordered coefficients
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 if ~exist('mode', 'var')
     mode = 'zigzag';

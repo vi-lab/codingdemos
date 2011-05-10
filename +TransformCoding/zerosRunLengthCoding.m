@@ -1,4 +1,37 @@
 function rlcDataBlock = zerosRunLengthCoding(coeffsBlock)
+%ZEROSRUNLENGTHCODING Zeros run-length code the input blocks of coefficients
+%
+%   +TranformCoding/zerosRunLengthCoding.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   This method perfoms the actual run-length coding for each coefficient
+%   in the input block (or blocks). Since run-length pair counts will
+%   vary depending on the actual coefficients in the block the ouput
+%   size will vary. To prevent this (in MATLAB it is a lot faster to use
+%   preallocated fixed size structures) the output is organised as a block
+%   of fixed size of the maximum possible size of the run-length data, ie.
+%   126 values (63 for the RS value and 63 for the actual value). Ends
+%   of blocks are marked with a EOB marker, a RS value and value of zero
+%   so the end of the actual encoded data in the 126 length vector is easy
+%   to determine.
+%   The input data is organised as vectors of 64 coefficients as output by
+%   the coefficient reordering process. The input blocks are taken in
+%   raster order. Thus for a 2 by 2 block image, the inpit will be a 
+%   2x128 (rows x columns) matrix and the output will be a 2x252 matrix.
+%
+%   This method also handles the special JPEG case of zeros run-lengths of
+%   larger than 15.
+%
+%   Ref: CCITT Rec. T.81 (1992 E) p. 89-91, Section F.1.2.2
+%
+%   Parameters -
+%       coeffsBlock: the input block(s) of DCT coefficients
+%   Returns -
+%       rlcDataBlock: a block of RS values and magnitude values organised as described above
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 % input data is takes as 64 values raster order
 coeffs = reshape(coeffsBlock.', 64, []).'; % now 1 row per block
