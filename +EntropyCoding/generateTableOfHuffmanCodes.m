@@ -1,16 +1,26 @@
 function [ HUFFCODE ] = generateTableOfHuffmanCodes( HUFFSIZE )
-%GENERATETABLEOFHUFFMANCODES Summary of this function goes here
+%GENERATETABLEOFHUFFMANCODES Create the table of Huffman code values given the array of Huffman code sizes
 %
 %   +EntropyCoding/generateTableOfHuffmanCodes.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
+%   This is an implementation of the method 'Generate_code_table' in the
+%   JPEG standard. Given an array of the size of each Huffman code this
+%   actually generates the Huffman codes. The codes are ordered by
+%   increasing code value and length.
+%
 %   Ref: CCITT Rec. T.81 (1992 E) p. 52, Figure C.2
 %
-%   HELP INFO
+%   Parameters -
+%       HUFFSIZE: a table of the size of each Huffman code
+%   Returns -
+%       HUFFCODE: a table of the Huffman codes (in numeric values)
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
+
+% FIXME: vectorise but leave commented out implementation of flowchart
 
 K = 1;
 CODE = uint16(0);

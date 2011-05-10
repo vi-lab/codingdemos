@@ -5,7 +5,15 @@ function [ ycbcrimage ] = subsampledToYCbCrImage( simage, upsampleFilter )
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
 %   The input image must be a subsampled image struct. Optionally specify
-%   an interpolation mode
+%   an interpolation mode.
+%   The subsampled image struct must contain a y, cb and cr field.
+%
+%   Parameters -
+%       simage: the subsampled image struct to convert
+%   Optional Parameters -
+%       upsampleFilter: the upsampling filter name string, e.g. 'bilinear'
+%   Returns -
+%       ycbcrimage: an (h,w,d) YCbCr image matrix (in the same type as the type of the input struct fields)
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.

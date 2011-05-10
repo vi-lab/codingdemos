@@ -1,18 +1,23 @@
 function [ simage ] = ycbcrImageToSubsampled( image, varargin )
-%YCBCRIMAGETOSUBSAMPLED Convert a ycbcr image into a subsampled struct with
-%the given mode.
+%YCBCRIMAGETOSUBSAMPLED Convert a ycbcr image into a subsampled struct
 %
 %   +Subsampling/ycbcrImageToSubsampled.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   The available modes can be obtained from Subsampling.supportedModes(). 
 %   For a description on what modes mean see
-%       `help Subsampling.supportedModes`
-%   and the following reference.
-%   Parameters:
-%       'Mode': 
-%   Ref: 
-%       http://dougkerr.net/pumpkin/articles/Subsampling.pdf
+%   `help Subsampling.supportedModes`
+%   Note: the available modes can be obtained from
+%   Subsampling.supportedModes().
+%
+%   Ref: http://dougkerr.net/pumpkin/articles/Subsampling.pdf
+%
+%   Parameters -
+%       image: the YCbCr image matrix.
+%   Optional Parameters (passed as StringKey-Value pairs) -
+%       'Mode': the subsampling mode string, e.g. '4:2:2'
+%       'Interpolation': the interpolation string (see MATLAB 'imresize' help)
+%   Returns:
+%       simage: a subsampled image struct containing the 'y', 'cb', 'cr' matrix fields and the 'mode' and 'interpolation' string fields
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.

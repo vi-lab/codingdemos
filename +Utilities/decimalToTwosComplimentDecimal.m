@@ -1,6 +1,18 @@
 function [ value ] = decimalToTwosComplimentDecimal( dec, lengthInBits )
-%TWOSCOMPLIMENT Summary of this function goes here
-%   Detailed explanation goes here
+%DECIMALTOTWOSCOMPLIMENTDECIMAL Return the unsigned decimal values of the given negative decimal
+%
+%   +Utilites/decimalToTwosComplimentDecimal.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Parameters -
+%       dec: the negative value to cast
+%       lengthInBits: the length in bits of the cast value
+%   Returns -
+%       value: the unsigned value
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 if ~exist('lengthInBits', 'var')
     lengthInBits = 8;
@@ -9,7 +21,6 @@ end
 if ~(dec < 0)
     throw(MException('Utilities:decimalTwosCompliment', 'You can only get the 2''s compliment of a negative number.'));
 end
-
 
 if lengthInBits < 9
     decCast = typecast(int8(dec), 'uint8');
@@ -21,12 +32,5 @@ end
 
 mask = (2^lengthInBits) - 1;
 value = bitand(decCast, mask); % strop off unwanted bits
-
-% Below is the old very slow way
-%binary = num2str('0'==dec2bin(abs(dec), lengthInBits), '%d');
-%if lengthInBits < length(binary)
-%    throw(MException('Utilities:decimalTwosCompliment', 'The number can not fit in the specified number of bits.'));
-%end
-%value = bin2dec(binary) + 1;
 
 end

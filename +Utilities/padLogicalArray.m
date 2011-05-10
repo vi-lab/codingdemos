@@ -1,6 +1,22 @@
 function [ paddedArray ] = padLogicalArray( array, byteLength, padValue )
-%PADLOGICALARRAY Summary of this function goes here
-%   Detailed explanation goes here
+%PADLOGICALARRAY Pad a logical bit array to a given byte length
+%
+%   +Utilities/padLogicalArray.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Extend the length of a binary logical bit array to a factor of the
+%   given byte length with the given pad value.
+%
+%   Parameters -
+%       array: a logical binary array
+%       byteLength: the length of a byte in the logical array, defaults to 8 bits
+%       padValue: 1 or 0 pad value, defaults to 1
+%   Returns -
+%       paddedArray: the padded array
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 if ~exist('byteLength', 'var')
     byteLength = 8;

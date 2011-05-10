@@ -1,20 +1,39 @@
-function qt = qualityFactorToQuantisationTable(quantisation_table, qf)
-% convertQualityFactorToQuantisationParameter: qf = quality factor as in IJG's implementation
+function scaledQuantisationTable = qualityFactorToQuantisationTable(quantisationTable, qualityFactor)
+%QUALITYFACTORTOQUANTISATIONTABLE Scale a DCT quantisation table by a quality factor between 0 and 100
+%
+%   +TranformCoding/qualityFactorToQuantisationTable.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Convert a quality factor (between 0 and 100) and start quantisation
+%   table into a scaled quantisation table as per the IJG's JPEG
+%   implementation.
+%
+%   Ref: http://libjpeg.cvs.sourceforge.net/viewvc/libjpeg/libjpeg/
+%
+%   Parameters -
+%       quantisationTable: the starting quantisation table (e.g. from the JPEG standard)
+%       qualityFactor: the quality factor
+%   Returns -
+%       scaledQuantisationTable: the scaled quantisation table
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
-if( qf < 1 )
-    qf = 1;
-elseif( qf > 100 )
-    qf = 100;
+if( qualityFactor < 1 )
+    qualityFactor = 1;
+elseif( qualityFactor > 100 )
+    qualityFactor = 100;
 end
-if (qf < 50)
-    scale_factor = 5000 / qf;
+if (qualityFactor < 50)
+    scaleFactor = 5000 / qualityFactor;
 else
-    scale_factor = 200 - qf*2;
+    scaleFactor = 200 - qualityFactor*2;
 end
 % set quantisation tables
-qt = round(((quantisation_table .* scale_factor) + 50) ./ 100);
+scaledQuantisationTable = round(((quantisationTable .* scaleFactor) + 50) ./ 100);
 % limit the values to the valid range 
-qt( qt <= 0 ) = 1;
-qt( qt > 255 ) = 255;
+scaledQuantisationTable( scaledQuantisationTable <= 0 ) = 1;
+scaledQuantisationTable( scaledQuantisationTable > 255 ) = 255;
 
 return

@@ -1,5 +1,5 @@
 function [ dec ] = logicalToUnsignedDecimal( data )
-%LOGICALTOUNSIGNEDDECIMAL Convert binary logical arrays to unsigned decimal
+%LOGICALTOUNSIGNEDDECIMAL Convert binary logical arrays to unsigned decimals
 %
 %   +Utilities/logicalToUnsignedDecimal.m
 %   Part of 'MATLAB Image & Video Compression Demos'

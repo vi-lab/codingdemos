@@ -58,7 +58,12 @@ classdef base < handle
 
             screensInOrder = GUIs.order;
 
-            screenID = strmatch(class(obj), screensInOrder);
+            className = regexp(class(obj), '\.', 'split');
+            screenID = strmatch(className{2}, screensInOrder);
+            if isempty(screenID)
+                close(obj.hMainWindow);
+                throw(MException('GUIsbase:constructor', ['The required screen named ''' className{2} ''' cannot be found in the order matrix (see ''GUIs.order'').']));
+            end
             prevID = screenID - 1;
             if prevID < 1
                 prevID = length(screensInOrder);
@@ -333,8 +338,7 @@ classdef base < handle
             % By default the desired screen name (fully qualified, ie. with
             % package name) is passed and executed and the current window
             % is closed.
-
-            eval([screenName ';']);
+            GUIs.(screenName)();
             close(obj.hMainWindow);
         end
    end
