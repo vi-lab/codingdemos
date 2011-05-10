@@ -29,7 +29,9 @@ The following packages are included:
 * EntropyCoding: Contains methods for the entropy encoding/decoding of JPEG
   (Huffman coding).
 * JPEG: Contains the JPEG encoder and decoder bodies.
-* Video: N/A at the moment.
+* Video: A motion compensated video coder, using JPEG for intraframe coding.
+* MotionEstimation: The motion estimation functionality, such as difference
+  calculation, block matching (full and diamond search).
 * Utilities: Contains helper methods, such as methods to convert logical
   arrays of bits into numerical values and vice-versa.
 * ThirdParty: 3rd party code, such as a faster implementation of the DCT.

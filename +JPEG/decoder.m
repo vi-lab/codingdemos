@@ -153,7 +153,7 @@ classdef decoder < handle
                 %    ), obj.zerosRunLengthCodedOrderedACCoefficients{c}, 'UniformOutput', false);
 
                 blocksACCoefficients{c} = cellfun(@(block)(...
-                        Utilities.padArray( ...
+                        Utilities.padNumericArray( ...
                             cell2mat(...
                                 cellfun(@(RS, mag)(EntropyCoding.decodeACZerosRunLengthValue(RS, mag)), block(:,1), block(:,2), 'UniformOutput', false) ...
                             .') ...
@@ -553,7 +553,7 @@ classdef decoder < handle
 
                 lengthOfExtraBits = categoryOfDCDiff;
 
-                [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
+                [magnitudeExtraBitsValue currentByte currentBit] = EntropyCoding.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
                 obj.differentiallyCodedDCCoefficient{channelID}(i,:) = {categoryOfDCDiff, magnitudeExtraBitsValue};
 
@@ -575,7 +575,7 @@ classdef decoder < handle
                     else
                         % Get extra magnitude bits (RECEIVE)
                         lengthOfExtraBits = bitand(valueForRS, 15);
-                        [magnitudeExtraBitsValue currentByte currentBit] = Utilities.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
+                        [magnitudeExtraBitsValue currentByte currentBit] = EntropyCoding.getValueBetweenBitsFromNumericArray( obj.inputStruct.numericData, currentByte, currentBit, lengthOfExtraBits);
 
                         obj.zerosRunLengthCodedOrderedACCoefficients{channelID}{i}(c, :) = {valueForRS, magnitudeExtraBitsValue, zerosLength};
                         acLength = acLength + zerosLength + 1;

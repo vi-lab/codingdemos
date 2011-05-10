@@ -1,6 +1,19 @@
 function array = readBinaryFileToArray( fileName, mode )
-%WRITEBINARYFILEFROMARRAY Summary of this function goes here
-%   Detailed explanation goes here
+%READBINARYFILETOARRAY Reads the input file and optionally converts it to a logical bit array
+%
+%   +Utilites/readBinaryFileToArray.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Parameters -
+%       fileName: the file to create
+%   Optional Parameters -
+%       mode: the optional mode, either 'numeric' or 'logical'
+%   Returns -
+%       array: the file array, numeric or logical array
+%   
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 if ~exist('mode', 'var')
     mode = 'numeric';

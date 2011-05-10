@@ -19,7 +19,6 @@ function [ binary ] = decimalToLogical( dec, lengthInBits )
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
-%
 
 if ~isnumeric(dec)
     throw(MException('Utilities:decimalToLogical', 'The decimal must be a numeric value.'));

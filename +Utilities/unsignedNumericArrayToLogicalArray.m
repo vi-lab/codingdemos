@@ -1,6 +1,19 @@
 function [ logicalArray ] = unsignedNumericArrayToLogicalArray( array )
-%BINARYTONUMERICARRAY Summary of this function goes here
-%   Detailed explanation goes here
+%UNSIGNEDNUMERICARRAYTOLOGICALARRAY Convert the unsigned numeric array to a logical bit array
+%
+%   +Utilites/unsignedNumericArrayToLogicalArray.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Note this method assumed 8 bit bytes.
+%
+%   Parameters -
+%       array: the unsigned numeric array
+%   Returns -
+%       logicalArray: the logical binary bit array
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
 logicalArray = cell2mat(arrayfun(@(x)(Utilities.decimalToByte(x)), array.', 'UniformOutput', false));
 

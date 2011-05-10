@@ -1,6 +1,29 @@
 function [ stuffedArray ] = byteStuffing( array, byteLength )
-%BYTESTUFFING Summary of this function goes here
-%   Detailed explanation goes here
+%BYTESTUFFING Place a zero value byte in the bit stream after every maximum byte value
+%
+%   +Utilites/byteStuffing.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   The JPEG standard specifies stuffing zeros after each maximum value in
+%   the entropy coded sections of the bit stream. The byte length is
+%   either specified or defaults to 8 bits).
+%   In JPEG a byte of plus another value is considered a marker with a
+%   special meaning.
+%
+%   Ref: CCITT Rec. T.81 (1992 E) p.91 Section F.1.2.3
+%
+%   Parameters -
+%       array: the input logical bit array bit stream
+%   Optional Parameters -
+%       byteLength: the length in bits of a 'byte', defaults to 8
+%   Returns -
+%       stuffedArray: the input array with necessary stuffed bytes
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
+
+% FIXME: should also support numeric array inputs
 
 if ~exist('byteLength', 'var')
     byteLength = 8;

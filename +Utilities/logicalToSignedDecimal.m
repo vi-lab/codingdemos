@@ -1,6 +1,20 @@
 function [ dec ] = logicalToSignedDecimal( array )
-%LOGICALTWOSCOMPLIMENTTODECIMAL Summary of this function goes here
-%   Detailed explanation goes here
+%LOGICALTOSIGNEDDECIMAL Convert binary logical arrays to signed decimals
+%
+%   +Utilities/logicalToSignedDecimal.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   This method converts a single or a matrix of binary logical arrays
+%   into signed decimal values.
+%
+%   Parameters -
+%       data: a logical array or a matrix of rows of logical arrays
+%   Returns -
+%       dec: the signed decimal values array
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 %
 %   Note: this is slow
 %
