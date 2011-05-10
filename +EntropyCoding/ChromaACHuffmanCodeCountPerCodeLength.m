@@ -1,11 +1,13 @@
 function [ table ] = ChromaACHuffmanCodeCountPerCodeLength( )
-%ChromaACHuffmanCodeCountPerCodeLength Summary of this function goes here
-%   Detailed explanation goes here
+%ChromaACHuffmanCodeCountPerCodeLength Standard Chroma AC Huffman Code Counts table
 %
 %   +EntropyCoding/ChromaACHuffmanCodeCountPerCodeLength.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   HELP INFO
+%   Constant table of Huffman code counts for AC chroma coefficients as
+%   specified by the standard (the BITS table).
+%
+%   Ref: CCITT Rec. T.81 (1992 E) p.159 Section K.3.3.2
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.

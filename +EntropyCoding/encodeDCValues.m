@@ -4,8 +4,23 @@ function [ encodedLogicalBitArray ] = encodeDCValues( diffValues, huffmanTable )
 %   +EntropyCoding/encodeDCValues.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   HELP INFO
+%   Encode the DC differential values with the given Huffman codes table.
+%   The JPEG DC encoding process involves differentially coding the DC
+%   DCT coefficient. The difference between the DC value of the current
+%   block and the previous block is coded as a Huffman code representing
+%   the bit length of the difference value and the magnitude of the value
+%   in the minimum number of bits required to represent the 2's compliment
+%   value.
+%
+%   Ref: CCITT Rec. T.81 (1992 E) p.88-89, Section F.1.1.5.1 and F.1.2.1
+%
 %   Note: maximum encoded value should not exceed 16 bits.
+%
+%   Parameters -
+%       diffValues: the DC difference values array
+%       huffmanTable: the AC coefficient Huffman code table (as a cell array of logical bit arrays)
+%   Returns -
+%       encodedLogicalBitArray: the resulting encoded values as a cell array of logical arrays of bits
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
