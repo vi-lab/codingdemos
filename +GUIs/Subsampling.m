@@ -226,7 +226,6 @@ classdef Subsampling < GUIs.base
                                                                 'Position', [obj.lastClickedBlockX-0.5  obj.lastClickedBlockY-0.5 4 2], ...
                                                                 'EdgeColor', [0 0 0], 'LineWidth', 1);
                 end
-                
                 obj.updateSubsampleViews();
             end               
        end
@@ -290,7 +289,6 @@ classdef Subsampling < GUIs.base
                     break;
                end
            end
-
            obj.doSubsamplingOnImageMatrix();
            obj.updateAxes(true);
        end
@@ -298,7 +296,7 @@ classdef Subsampling < GUIs.base
         function changeInput(obj, source)
             % Call super class implementation which does the loading etc
             obj.changeInput@GUIs.base(source);
-            
+            obj.hSelectedBlockRectangle = cell(1,3);
             obj.doSubsamplingOnImageMatrix();
             obj.updateAxes();
         end
