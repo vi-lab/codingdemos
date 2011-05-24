@@ -11,6 +11,6 @@ function [ orderOfScreens ] = order(  )
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
-orderOfScreens = {'Correlation' 'Subsampling' 'TransformCoding' 'VideoEncoder'};
+orderOfScreens = {'Correlation' 'Subsampling' 'JPEGCodec' 'TransformCoding' 'VideoEncoder'};
 
 end

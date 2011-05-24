@@ -5,12 +5,14 @@ classdef VideoEncoder < GUIs.base
     properties
         videoEncoder
 
+        hFrameTextInfo
         hPlayPauseButton
         hStepButton
         hRepeatCheckBox
         hShowResidualsCheckBox
 
         videoStatAxes
+        videoBitRateAxes
 
         videoPlayers
         playTimer
@@ -71,6 +73,8 @@ classdef VideoEncoder < GUIs.base
                                     'String', 'Show Residuals?',...
                                     'Value', 0,...
                                     'Callback', @(source, event)(obj.toggleShowResiduals(source)));
+
+            obj.hFrameTextInfo = obj.createTextElement([0.01 0.01 0.7 0.04], '(Frame info)', 14, 'on', 'white', obj.hExternalPanel);
 
             % draw encoder
             mainCanvas = axes('Parent', obj.hExternalPanel, ...
@@ -133,15 +137,18 @@ classdef VideoEncoder < GUIs.base
 
             % Axes
             obj.setVideoPlayer('input', obj.videoEncoder.imageMatrix, ...
-                                [0.01 0.65 0.3 0.3], [0 -0.2 0.2 0.2]);
+                                [0.01 0.65 0.28 0.28], [0 -0.2 0.2 0.2]);
             obj.setVideoPlayer('output', obj.videoEncoder.reconstructedVideo, ...
-                                [0.69 0.65 0.3 0.3], [-0.2 -0.2 0.2 0.2]);
+                                [0.69 0.35 0.28 0.28], [-0.2 -0.2 0.2 0.2]);
             obj.setVideoPlayer('residual', obj.videoEncoder.predictionErrorFrame, ...
                                 [0.4 0.75 0.2 0.2], [-0.1 -0.1 0.2 0.2]);
             obj.setVideoPlayer('reconstructedresidual', obj.videoEncoder.reconstructedPredictionErrorFrame, ...
                                 [0.4 0.45 0.2 0.2], [-0.1 -0.2 0.2 0.2]);
-            %obj.setVideoPlayer(3, cell2mat(obj.videoEncoder.reconstructedPredictionErrorFrame), obj.videoMVAxes);
-            obj.videoStatAxes = axes('Position', [0.69 0.35 0.3 0.3], 'Parent', obj.hExternalPanel);
+            obj.setVideoPlayer('motionvectors', obj.videoEncoder.reconstructedVideo, ...
+                                [0.01 0.25 0.28 0.28], [0 -0.1 0.2 0.2]);
+
+            obj.videoBitRateAxes = axes('Position', [0.69 0.65 0.3 0.3], 'Parent', obj.hExternalPanel);
+            obj.videoStatAxes = axes('Position', [0.69 0.05 0.3 0.3], 'Parent', obj.hExternalPanel);
 
 
             obj.toggleShowResiduals(obj.hShowResidualsCheckBox);
@@ -170,6 +177,9 @@ classdef VideoEncoder < GUIs.base
                 case {'input','output'}  
                     obj.videoPlayers{playerID}.data = matrix;
                     obj.videoPlayers{playerID}.type = 'rgbimagedata';
+                case 'motionvectors'
+                    obj.videoPlayers{playerID}.data = matrix;
+                    obj.videoPlayers{playerID}.type = 'motionvectorsonrgbimagedata';
             end
             obj.videoPlayers{playerID}.position = pos;
             obj.videoPlayers{playerID}.zoomstate = 0;
@@ -238,6 +248,11 @@ classdef VideoEncoder < GUIs.base
                     end
                 end
                 frame = obj.videoPlayers{i}.data(:,:,:,obj.videoPlayers{i}.frame);
+
+                [GOPIndex frameIndex] = obj.videoEncoder.getGOPAndFrameIndex(obj.videoPlayers{i}.frame);
+                infoText = ['Frame: ' num2str(obj.videoPlayers{i}.frame) ' (GOP: ' num2str(GOPIndex) ', frame: ' num2str(frameIndex) ') - ' upper(obj.videoEncoder.structureOfGOPString(frameIndex)) ' frame.'];
+                set(obj.hFrameTextInfo, 'String', infoText);
+
                 switch obj.videoPlayers{i}.type
                     case 'residualmatrixdata'
                         obj.videoPlayers{i}.hFrame = imagesc(sum(frame,3), 'Parent', obj.videoPlayers{i}.parent);
@@ -246,6 +261,29 @@ classdef VideoEncoder < GUIs.base
                     case 'rgbimagedata'
                         obj.videoPlayers{i}.hFrame = imshow(ycbcr2rgb(frame), 'Parent', obj.videoPlayers{i}.parent);
                         set(obj.videoPlayers{i}.hFrame, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source, i)));
+                    case 'motionvectorsonrgbimagedata'
+                        mVs = obj.videoEncoder.motionVectors{GOPIndex, frameIndex};
+                        bs = obj.videoEncoder.blockMatching.blockSize;
+                        inputW = size(mVs,1)*bs;
+                        inputH = size(mVs,2)*bs;
+                        [X, Y] = meshgrid(1:bs:inputW, 1:bs:inputH);
+                        nX = numel(X);
+                        x = zeros(nX,1); y = zeros(nX,1); u = zeros(nX,1); v = zeros(nX,1);
+                        for blockIndex = 1:nX
+                            x(blockIndex) = X(blockIndex);
+                            y(blockIndex) = Y(blockIndex);
+                            bx = ceil(x(blockIndex)/bs);
+                            by = ceil(y(blockIndex)/bs);
+                            mv = mVs(bx,by,:);
+                            u(blockIndex) = mv(1);
+                            v(blockIndex) = mv(2);
+                        end
+
+                        obj.videoPlayers{i}.hFrame = imshow(ycbcr2rgb(frame), 'Parent', obj.videoPlayers{i}.parent);
+                        set(obj.videoPlayers{i}.hFrame, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source, i)));
+                        hold(obj.videoPlayers{i}.parent, 'on');
+                        quiver(obj.videoPlayers{i}.parent, x, y, u, v, 'k');
+                        hold(obj.videoPlayers{i}.parent, 'off');
                 end
 
                 % update stats graph
@@ -254,6 +292,10 @@ classdef VideoEncoder < GUIs.base
                     plot(obj.videoStatAxes, obj.frameStatsToPlot);
                     xlim(obj.videoStatAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                     %ylim(obj.videoStatAxes, [10 50]);
+
+                    % TODO: This will plot bit counts when I have them
+                    bar(obj.videoBitRateAxes, obj.frameStatsToPlot);
+                    xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                 end
             end
         end
