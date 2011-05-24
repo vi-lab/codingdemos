@@ -15,6 +15,7 @@ classdef encoder < JPEG.encoder
 
         frameData
         motionVectors
+        huffmanTablesPerGOP
 
         predictionErrorFrame
         reconstructedPredictionErrorFrame
@@ -164,6 +165,8 @@ classdef encoder < JPEG.encoder
             obj.motionVectors = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
             obj.predictionErrorFrame = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
 
+            mvData = cell(1,obj.GOPs.count);
+
             for timeMatrixIndex = 1:obj.GOPs.totalNumberOfFramesInVideo
                 [GOPIndex frameIndex frameType] = obj.getGOPAndFrameIndex(timeMatrixIndex);
 
@@ -217,14 +220,26 @@ classdef encoder < JPEG.encoder
                 % Stats
                 obj.frameStatistics{timeMatrixIndex}.psnr = Utilities.peakSignalToNoiseRatio(obj.reconstructedVideo(:,:,1, timeMatrixIndex), obj.imageMatrix(:,:,1, timeMatrixIndex));
                 if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(obj.frameStatistics{timeMatrixIndex}.psnr)]); end
+
+                % Collect MVs for Huffman code generation
+                if ~isempty(obj.motionVectors{GOPIndex, frameIndex})
+                    mvData{GOPIndex} = [mvData{GOPIndex}; obj.motionVectors{GOPIndex, frameIndex}(:,1:2)];
+                end
             end
 
             if obj.isEnabledStage.entropyCoding
-                % *********************************************************
-                % *********************************************************
-                % ************************** CODE MVS
+                % Collect all MVS for GOP and generate the BITS and
+                % HUFFVALS table for the MVS.
+                for gop=1:length(mvData)
+                    if isempty(mvData{gop})
+                        continue;
+                    end
+                    [obj.huffmanTablesPerGOP{gop}.motionVectors.symbolValues, obj.huffmanTablesPerGOP{gop}.motionVectors.codeLengths] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( mvData{gop} );
+                end
+                % For each frame code MVs
+                
             end
-            
+
             % Construct bitstream if desired
             if obj.isEnabledStage.createBitStream
                 stream = obj.createBitStream();
@@ -343,15 +358,15 @@ classdef encoder < JPEG.encoder
                 movie(parent, mov, 1, frameRate);
             end
         end
-    end
-
-    methods (Access='protected')
 
         function [GOPIndex frameIndex frameType] = getGOPAndFrameIndex(obj, timeMatrixIndex)
             GOPIndex = ceil(timeMatrixIndex/obj.GOPs.numberOfFramesPerGOP);
             frameIndex = timeMatrixIndex - ((GOPIndex-1)*obj.GOPs.numberOfFramesPerGOP);
             frameType = obj.structureOfGOPString(frameIndex);
         end
+    end
+
+    methods (Access='protected')
 
         function stream = createBitStream(obj)
             % Stream format
