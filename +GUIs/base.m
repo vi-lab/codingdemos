@@ -346,6 +346,7 @@ classdef base < handle
         end
 
         function handleCloseRequest(obj, source, event)
+            delete(source)
         end
    end
 end
