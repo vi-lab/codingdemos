@@ -348,5 +348,41 @@ classdef base < handle
         function handleCloseRequest(obj, source, event)
             delete(source)
         end
+
+        function lineWithArrowHead(obj, p1, p2)
+            horzHeadsize = [0.01 0.01];
+            vertHeadsize = [0.006 0.015];
+            line([p1(1) p2(1)],...
+                [p1(2) p2(2)], ...
+                'Color', [0 0 0]); % input to sum
+            diff = p2 - p1;
+            if abs(diff(1)) > abs(diff(2))
+                % horz
+                if diff(1) > 0
+                    % right
+                    patch(  [p2(1)-horzHeadsize(1), p2(1)-horzHeadsize(1), p2(1)], ...
+                        [p2(2)+horzHeadsize(2), p2(2)-horzHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                else
+                    % left
+                    patch(  [p2(1)+horzHeadsize(1), p2(1)+horzHeadsize(1), p2(1)], ...
+                        [p2(2)+horzHeadsize(2), p2(2)-horzHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                end
+            else
+                % vert
+                if diff(2) > 0
+                    % up
+                    patch(  [p2(1)+vertHeadsize(1), p2(1)-vertHeadsize(1), p2(1)], ...
+                        [p2(2)-vertHeadsize(2), p2(2)-vertHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                else
+                    %down
+                    patch(  [p2(1)+vertHeadsize(1), p2(1)-vertHeadsize(1), p2(1)], ...
+                        [p2(2)+vertHeadsize(2), p2(2)+vertHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                end
+            end
+        end
    end
 end
