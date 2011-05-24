@@ -54,7 +54,7 @@ classdef base < handle
 
             scrsz = get(0, 'ScreenSize');
             obj.windowSize = scrsz;
-            obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.75 scrsz(3)*0.75], 'Color', [1 1 1]);
+            obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.75 scrsz(3)*0.75], 'Color', [1 1 1], 'KeyPressFcn', @(src,evt)(obj.handleKeyPress(src,evt)), 'CloseRequestFcn', @(src,evt)(obj.handleCloseRequest(src,evt)));
 
             screensInOrder = GUIs.order;
 
@@ -340,6 +340,12 @@ classdef base < handle
             % is closed.
             GUIs.(screenName)();
             close(obj.hMainWindow);
+        end
+
+        function handleKeyPress(obj, source, event)
+        end
+
+        function handleCloseRequest(obj, source, event)
         end
    end
 end
