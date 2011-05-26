@@ -33,7 +33,7 @@ classdef JPEGCodec < GUIs.base
             end
 
             obj.encoderInstance = encoder;
-            obj.encoderInstance = decoder;
+            obj.decoderInstance = decoder;
 
             mainCanvas = axes('Parent', obj.hExternalPanel, ...
                                         'Box', 'off', ...
@@ -99,7 +99,20 @@ classdef JPEGCodec < GUIs.base
                                                 'Position', [.01 .75 0.19 0.03], ...
                                                 'Value', obj.encoderInstance.qualityFactor,...
                                                 'Callback', @(source, event)(obj.quantisationFactorChange(source)));
+            obj.updateAxes();
+        end
 
+        function quantisationFactorChange(obj, source)
+            set(source, 'Enable', 'off');
+            drawnow;
+            obj.decoderInstance.decode(obj.encoderInstance.encode('Quality', ceil(get(source, 'Value'))));
+            set(source, 'Enable', 'on');
+            obj.updateAxes();
+        end
+
+        function updateAxes(obj)
+            Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);
+            Subsampling.subsampledImageShow(obj.decoderInstance.outputImageStruct, 'Parent', obj.hOutputImageAxes);
         end
     end
 end
