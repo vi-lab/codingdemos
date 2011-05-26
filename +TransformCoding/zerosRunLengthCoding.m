@@ -64,20 +64,22 @@ for block=1:size(coeffs, 1)
 
     % Now must handle special JPEG standard case limiting zeros to 15 for run
     if nnz(runLengths > 15)
-        overFifteens = (runLengths > 15);
+        overFifteens = find(runLengths > 15);
+        
         % Work out how many (15,0)s are needed
         fifteensNeeded  = floor(runLengths(overFifteens) / 15);
         remainders      = rem(runLengths(overFifteens), 15);
         % Update with remainder zeros number
         runLengths(overFifteens) = remainders;
         % Insert (15,0)s
-        for i=1:length(fifteensNeeded)
+        for i=1:length(overFifteens)
             if fifteensNeeded(i)
-                vs = ones(1,fifteensNeeded(i)).*15;
-                zs = zeros(1,fifteensNeeded(i));
-                 % insert and remove last 2 values which will be -1s
-                runLengths = [runLengths(1:i-1) vs runLengths(i:end - length(vs))];
-                values = [values(1:i-1) zs values(i:end - length(zs))];
+                count = fifteensNeeded(i);
+                vs = ones(1,count).*15;
+                zs = zeros(1,count);
+                 % insert and remove last 'count' values which will be -1s
+                runLengths = [runLengths(1:overFifteens(i)-1) vs runLengths(overFifteens(i):end - count)];
+                values = [values(1:overFifteens(i)-1) zs values(overFifteens(i):end - count)];
             end
         end
     end
