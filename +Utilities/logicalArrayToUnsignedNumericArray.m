@@ -4,7 +4,7 @@ function [ array ] = logicalArrayToUnsignedNumericArray( binaryArray, padding )
 %   +Utilites/logicalArrayToUnsignedNumericArray.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   Note this method assumed 8 bit bytes.
+%   Note this method assumes 8 bit bytes.
 %
 %   Parameters -
 %       binaryArray: the logical binary bit array
@@ -21,5 +21,5 @@ if ~exist('padding', 'var')
     padding = 1;
 end
 paddedArray = Utilities.padLogicalArray(binaryArray, 8, padding);
-array = Utilities.logicalToUnsignedDecimal(reshape(paddedArray, 8, []).');
+array = uint8(Utilities.logicalToUnsignedDecimal(reshape(paddedArray, 8, []).'));
 end

@@ -21,7 +21,7 @@ end
 
 fid = fopen(fileName,'rb');
 if fid ~= -1
-    array = fread(fid, inf, 'uint8');
+    array = uint8(fread(fid, inf, 'uint8'));
     fclose(fid);
     if strcmpi(mode, 'logical')
         % convert to logical
