@@ -22,8 +22,8 @@ end
 if dec < -128
     dec = -128;
 end
-if dec > 127
-    dec = 127;
+if dec > 255
+    dec = 255;
 end
 
 byte = Utilities.decimalToLogical(dec, 8);

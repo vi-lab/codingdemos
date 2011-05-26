@@ -21,8 +21,8 @@ end
 if dec < -32768
     dec = -32768;
 end
-if dec > 32767
-    dec = 32767;
+if dec > 65535
+    dec = 65535;
 end
 
 short = Utilities.decimalToLogical(dec, 16);
