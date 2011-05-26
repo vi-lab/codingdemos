@@ -90,7 +90,8 @@ classdef decoder < handle
                                         ... %'binaryData', Utilities.readBinaryFileToArray(data, 'logical'), ...
                                         'numericData', Utilities.readBinaryFileToArray(data, 'numeric'));
             elseif isa(data, 'logical')
-                obj.inputStruct = struct('binaryData', data);
+                obj.inputStruct = struct('binaryData', data, ...
+                                        'numericData', Utilities.logicalArrayToUnsignedNumericArray(data));
             elseif isa(data, 'struct')   %%%%%%%%%%%%%%%% STRUCT DATA FROM encoder, all data
                 %%%%%%obj.data = data;
             else
@@ -109,9 +110,7 @@ classdef decoder < handle
             % segment markers to identify each region (quantisation tables,
             % huffman tables, entropy coded blocks etc) and then decoding
             % them and extracting parameters.
-            if isfield(obj.inputStruct, 'binaryData')
-               obj.decodeFromLogicalArray();
-            elseif isfield(obj.inputStruct, 'numericData')
+            if isfield(obj.inputStruct, 'numericData')
                obj.decodeFromNumericArray();
             else
                 %%%%%%%% STRUCT FROM ENCODER, only do whats needed, (prob
@@ -586,9 +585,5 @@ classdef decoder < handle
             endByte = currentByte;
 
         end
-
-        function decodeFromLogicalArray(obj)
-        end
-
    end
 end

@@ -23,11 +23,17 @@ classdef JPEGCodec < GUIs.base
                 encoder = JPEG.encoder('examples/lena_color_256.bmp');
             end
 
-            if isempty(encoder.reconstruction)
-                encoder.encode('DoStagesAfterQuantisation', false, 'DoReconstruction', true);
+            % Cache the encode/decode result so at demo no delay
+            if ~exist('decoder', 'var')
+                decoder = JPEG.decoder(encoder.encode());
+            end
+
+            if isempty(decoder.outputImageMatrix)
+                decoder.decode();
             end
 
             obj.encoderInstance = encoder;
+            obj.encoderInstance = decoder;
 
             mainCanvas = axes('Parent', obj.hExternalPanel, ...
                                         'Box', 'off', ...
@@ -74,6 +80,7 @@ classdef JPEGCodec < GUIs.base
             %obj.createTextElement([0.501 0.701 0.09 0.09], 'RECT', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.85 0.75], [0.9 0.75]); % it to out
+            obj.lineWithArrowHead([0.9 0.75], [0.9 0.61]);
 
             xlim(mainCanvas, [0 1]);
             ylim(mainCanvas, [0 1]);
