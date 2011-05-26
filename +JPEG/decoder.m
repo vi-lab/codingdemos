@@ -23,12 +23,13 @@ classdef decoder < handle
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
-    properties (SetObservable)
-        inputStruct
-        verbose = false;
-    end
+    properties (SetObservable, SetAccess='protected')
 
-    properties (SetObservable, SetAccess='private')
+        useBuiltInMethods
+
+        verbose
+
+        inputStruct
 
         chromaSamplingMode
         outputImageSize
@@ -42,7 +43,6 @@ classdef decoder < handle
         componentSizeInBlocks
 
         % TODO : REFACTOR NAMING
-
 
         % Quantisation tables cell array
         quantisationTables
@@ -76,9 +76,12 @@ classdef decoder < handle
     end
 
     methods
-        function obj = decoder(source)
+        function obj = decoder(source, varargin)
             if exist('source','var')
                 obj.inputStruct = source;
+            end
+            if ~isempty(varargin)
+                obj.setDecodingParameters(varargin{:});
             end
         end
 
@@ -99,11 +102,35 @@ classdef decoder < handle
             end
         end
 
+        function setParameterDefaultValues(obj)
+            obj.setDecodingParameters('Verbose', false, 'BuiltIns', false);
+        end
+
+        function setDecodingParameters(obj, varargin)
+            for k=1:2:size(varargin,2)
+                switch lower(varargin{k})
+                    case 'verbose'
+                        obj.verbose = varargin{k+1};
+                    case 'builtins'
+                        obj.useBuiltInMethods = varargin{k+1};
+                end
+            end
+        end
+
         % TODO: Should take varargs so that you can pass in what to do
-        function outputImage = decode(obj, verbose)
-            outputImage = [];
-            if exist('verbose', 'var')
-                obj.verbose = verbose;
+        function outputImage = decode(obj, source, varargin)
+            if ~isempty(varargin)
+                obj.setDecodingParameters(varargin{:});
+            end
+
+            if exist('source', 'var')
+                obj.inputStruct = source;
+            end
+
+            if obj.useBuiltInMethods
+                methods = struct('DCT', @dct2, 'IDCT', @idct2);
+            else
+                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
             end
 
             % First the input data is decoded. This involves finding JPEG
@@ -175,7 +202,7 @@ classdef decoder < handle
                                                 @(block)(block.*obj.quantisationTables{obj.quantisationTableDestinationSelector(channelID) + 1}));
 
                 % IDCT
-                reconstructedChannelWithLevelShift{c} = blkproc(dequantisedChannel{c}, [8 8], @idct2);
+                reconstructedChannelWithLevelShift{c} = blkproc(dequantisedChannel{c}, [8 8], methods.IDCT);
 
                 % -----------
                 % Level Shift
