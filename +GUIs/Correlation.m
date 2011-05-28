@@ -30,7 +30,12 @@ classdef Correlation < GUIs.base
             obj.chosenVideoPoint = [1 1];
 
             % Show input image selection
-            obj.createInputImageSelectComboBoxAndText([0.06 0.96 0.25 0.03], [0.06 0.9 0.2 0.08]);
+            obj.createInputImageSelectComboBoxAndText([0.02 0.96 0.25 0.03], [0.02 0.90 0.2 0.03]);
+            obj.hVideoSelect = uicontrol('Style', 'pushbutton', 'String', 'Random Image',...
+                                        'Parent', obj.hExternalPanel,...
+                                        'Units', 'Normalized', ...
+                                        'Position', [0.24 0.92 0.1 0.03],...
+                                        'Callback', @(src,evt)obj.randomImage);
             obj.hImageAxes = obj.createAxesForImage([0.01 0.55 0.3 0.35], obj.hExternalPanel);
             obj.createTextElement([0.01 0.5 0.4 0.03], 'Click to select a row for correlation plot.', 9, 'on', 'white', obj.hExternalPanel);
             obj.hSpatialCorrelationAxes = axes('Parent', obj.hExternalPanel, 'Position', [0.4 0.56 0.54 0.38]);
@@ -74,6 +79,12 @@ classdef Correlation < GUIs.base
             obj.updateCorrelationPlots();
         end
 
+        function randomImage(obj, source, event)
+            obj.inputMatrix = uint8(floor(rand(256,256).*255));
+            obj.updateAxes();
+            obj.updateCorrelationPlots();
+        end
+
         function updateCorrelationPlots(obj)
             % Y channel
             if ~isempty(obj.hChosenLine)
@@ -81,7 +92,10 @@ classdef Correlation < GUIs.base
                 obj.hChosenLine = [];
             end
             data = obj.inputMatrix(:,:,1);
-            coefs = xcorr(data(obj.chosenRow,:,1), size(data,2));
+            data = data(obj.chosenRow,:,1);
+            data = data - mean(data(:));
+            coefs = xcorr(data, length(data));
+            %coefs = autocorr(data(obj.chosenRow,:,1), size(data,2)-1);
             plot(obj.hSpatialCorrelationAxes, coefs(ceil(length(coefs)/2):end));
             set(obj.hSpatialInfo, 'String', ['Chosen Row: ' num2str(obj.chosenRow)]);
             set(get(obj.hSpatialCorrelationAxes,'XLabel'),'String','Offset in Pixels');
@@ -126,10 +140,11 @@ classdef Correlation < GUIs.base
                 coefs = xcorr(data, i);
                 %plot(obj.hTemporalCorrelationAxes, coefs(ceil(length(coefs)/2):end));
                 plot(obj.hTemporalCorrelationAxes, coefs(ceil(length(coefs)/2):end));
+                xlim(obj.hTemporalCorrelationAxes, [1 size(obj.videoEncoder.imageMatrix,4)]);
                 set(get(obj.hTemporalCorrelationAxes,'XLabel'),'String','Offset in Time (Frames)');
                 set(get(obj.hTemporalCorrelationAxes,'YLabel'),'String','Correlation');
                 set(obj.hVideoInfo, 'String', ['Chosen Pixel: (' num2str(obj.chosenVideoPoint(1)) ',' num2str(obj.chosenVideoPoint(2)) ')']);
-                pause(0.3);
+                pause(0.1);
             end 
         end
 
