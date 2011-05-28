@@ -68,7 +68,7 @@ classdef TransformCoding < GUIs.base
                                                 'Min', 0, 'Max', 100, ...
                                                 'Units', 'Normalized', ...
                                                 'Position', [.01 .46 0.3 0.03], ...
-                                                'Value', obj.encoderInstance.qualityFactor,...
+                                                'Value', 60,...
                                                 'Callback', @(source, event)(obj.quantisationFactorChange(source)));
 
             % Create basis images
@@ -165,8 +165,7 @@ classdef TransformCoding < GUIs.base
 
             
             % Just call directly
-            obj.encoderInstance.qualityFactor = ceil(get(source, 'Value'));
-            obj.encoderInstance.encode('DoEntropyCode', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap);
+            obj.encoderInstance.encode('DoEntropyCode', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap, 'Quality', ceil(get(source, 'Value')));
 
             %disp('Finished quantisation change.');
             
