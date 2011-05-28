@@ -106,7 +106,7 @@ classdef Subsampling < GUIs.base
                                         'String', {'Nearest neighbour' 'Bilinear' 'Bicubic'},...
                                         'Visible', 'off', ...
                                         'Callback', @(source, event)(obj.changeInterpolationMode(source)));
-           
+
             % selected block panel
             obj.hSelectedBlockPanel = uipanel('Title', 'Subsampled chroma for selected block (click on image to select):', ...
                                         'Parent', obj.hExternalPanel, ...
@@ -291,8 +291,8 @@ classdef Subsampling < GUIs.base
            end
            obj.doSubsamplingOnImageMatrix();
            obj.updateAxes(true);
-       end
-       
+        end
+
         function changeInput(obj, source)
             % Call super class implementation which does the loading etc
             obj.changeInput@GUIs.base(source);
@@ -300,8 +300,8 @@ classdef Subsampling < GUIs.base
             obj.doSubsamplingOnImageMatrix();
             obj.updateAxes();
         end
-       
-       function changeChannelOnDisplay(obj, source)
+
+        function changeChannelOnDisplay(obj, source)
             selected = get(source, 'Value');
             switch(selected)
                 case 1
@@ -313,12 +313,12 @@ classdef Subsampling < GUIs.base
                 case 4
                     obj.channelToShow = 'cr';
             end
-            
+
             obj.updateCheckBoxStatus();
-            
+
             obj.updateAxes(true);
-       end
-       
+        end
+
         function changeShowChannelWithColour(obj, source)
             obj.showChannelInColour = get(source, 'Value');
             obj.updateAxes(true);
