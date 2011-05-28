@@ -138,7 +138,6 @@ classdef Correlation < GUIs.base
                 set(obj.hVideo, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source)));
                 data(1,i) = obj.videoEncoder.imageMatrix(obj.chosenVideoPoint(2),obj.chosenVideoPoint(1),1,i);
                 coefs = xcorr(data, i);
-                %plot(obj.hTemporalCorrelationAxes, coefs(ceil(length(coefs)/2):end));
                 plot(obj.hTemporalCorrelationAxes, coefs(ceil(length(coefs)/2):end));
                 xlim(obj.hTemporalCorrelationAxes, [1 size(obj.videoEncoder.imageMatrix,4)]);
                 set(get(obj.hTemporalCorrelationAxes,'XLabel'),'String','Offset in Time (Frames)');

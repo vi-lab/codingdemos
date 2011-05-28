@@ -11,27 +11,27 @@ classdef TransformCoding < GUIs.base
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
-   properties
-       
+    properties
+
        encoderInstance
-       
+
        hInputImage
        hInputImageAxes
-       
+
        hQuantisationSlider
-       
+
        hOutputImage
        hOutputImageAxes
-       
+
        hBasesPanel
        hButtonSetAll
        hButtonClearAll
-       
+
        hSelectedBlockPanel
        %hSelectedBlockAxes
        hSelectedBlock
        hSelectedBlockRectangle
-       
+
        hDataTable
 
        changeCoefficientMapLive
