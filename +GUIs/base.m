@@ -190,7 +190,7 @@ classdef base < handle
                                         'Units', 'Normalized', ...
                                         'Position', position,...
                                         'String', obj.getExampleImagesFromExamplesDirectory(),...
-                                        'Callback', @(source, event)(obj.changeInput(source, event)));
+                                        'Callback', @(source, event)(obj.changeInput(source)));
             p = getpixelposition(obj.hInputImageSelect);
             setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
         end
@@ -227,7 +227,7 @@ classdef base < handle
             line([0 1], [0 1], 'LineWidth',1,'Color',[.8 .8 .8]);
         end
 
-        function changeInput(obj, source, event)
+        function changeInput(obj, source)
             % ---------------------------------------------
             % Default callback for the input image combobox
             % ---------------------------------------------

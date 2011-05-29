@@ -22,15 +22,16 @@ classdef TransformCoding < GUIs.base
 
        hOutputImage
        hOutputImageAxes
+       hPSNRText
 
        hBasesPanel
        hButtonSetAll
        hButtonClearAll
 
        hSelectedBlockPanel
-       %hSelectedBlockAxes
        hSelectedBlock
        hSelectedBlockRectangle
+       selectedBlockCoords = [];
 
        hDataTable
 
@@ -43,52 +44,48 @@ classdef TransformCoding < GUIs.base
    end
    
 	methods
-        function obj = TransformCoding(encoder, decoder)
+        function obj = TransformCoding()
 
             obj = obj@GUIs.base('Transform Coding: DCT');
-
-            if ~exist('encoder', 'var')
-                %throw(MException('TransformWindow:TransformWindow', 'You must pass in the instance of the JPEG encoder.'));
-                encoder = JPEG.encoder('examples/lena_color_256.bmp');
-            end
-
-            if isempty(encoder.reconstruction)
-                encoder.encode('DoStagesAfterQuantisation', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap);
-            end
-
-            obj.encoderInstance = encoder;
            
             % Input and output image axes
-            obj.hInputImageAxes = obj.createAxesForImage([.01 .50 .30 .48]);
+            obj.createInputImageSelectComboBoxAndText([0.01 0.96 0.1 0.03], [0.11 0.95 0.1 0.03]);
+            obj.hInputImageAxes = obj.createAxesForImage([.01 .50 .30 .45]);
 
-            obj.hOutputImageAxes = obj.createAxesForImage([.01 .01 .30 .48]);
+            obj.hOutputImageAxes = obj.createAxesForImage([.69 .5 .30 .45]);
+            obj.createTextElement([0.69 0.96 0.1 0.03], 'Output Image');
+            obj.hPSNRText = obj.createTextElement([0.8 0.96 0.2 0.03], '(PSNR: )');
 
+            obj.createTextElement([.35 0.55 0.24 0.03], 'JPEG Quality Factor:');
             obj.hQuantisationSlider = uicontrol('Style', 'slider', ...
                                                 'Parent', obj.hExternalPanel, ...
                                                 'Min', 0, 'Max', 100, ...
                                                 'Units', 'Normalized', ...
-                                                'Position', [.01 .46 0.3 0.03], ...
+                                                'Position', [.35 .52 0.3 0.03], ...
                                                 'Value', 60,...
                                                 'Callback', @(source, event)(obj.quantisationFactorChange(source)));
+            obj.createTextElement([0.35 0.5 0.04 0.03], '0');
+            obj.createTextElement([0.475 0.5 0.04 0.03], '50');
+            obj.createTextElement([0.60 0.5 0.04 0.03], '100');
 
             % Create basis images
             [X,Y] = meshgrid(1:8,1:8);
             obj.bases = arrayfun(@(x,y)(TransformCoding.createBasisImage(x,y)), X(:), Y(:), 'UniformOutput', false);
 
             % Create panel for basis
+            obj.createTextElement([0.36 0.93 0.24 0.06], 'Click to enable or disable a particular DCT basis function:');
             obj.hBasesPanel = uipanel('Parent', obj.hExternalPanel, ...
                                     'BackgroundColor', 'white', ...
-                                    'Position', [0.45 0.65 0.34 0.34], ...
+                                    'Units', 'Normalized', ...
+                                    'Position', [0.4 0.59 0.34 0.34], ...
                                     'ResizeFcn', @(src, evt)(obj.resizeBasesPanel()));
 
             % Create toggle buttons
             arrayfun(@(i)(uicontrol('Parent', obj.hBasesPanel, ...
                                 'Style', 'togglebutton', ...
-                                ... %'String', ['basis' num2str(X(i)) num2str(Y(i))], ... % FOR DEBUGGING
                                 'Units', 'Normalized', ...
                                 'Position', [(0.125*(X(i)-1)) (1-(0.1111*(Y(i)))) 0.125 0.1111], ...
-                                ... %Position', [(40*(X(i)-1)) (340-(40*(Y(i)))) 40 40], ...
-                                'Tag', ['basis' num2str(i)], ... %['basis' num2str(X(i)) num2str(Y(i))], ...
+                                'Tag', ['basis' num2str(i)], ...
                                 'Value', 1, ...
                                 'Callback', @(src, evt)(obj.toggleCoefficient(src, obj.changeCoefficientMapLive)))...
                             ), 1:length(obj.bases));
@@ -98,11 +95,10 @@ classdef TransformCoding < GUIs.base
             obj.hButtonSetAll = uicontrol('Style', 'pushbutton', ...
                                         'Parent', obj.hBasesPanel, ...
                                         'FontSize', 8,  ...
-                                        ...%'FontName', 'Courier New',...
                                         'String', 'Set All', ...
                                         'Callback', @(src, evt)(obj.setAllCoefficients()), ...
-                                        'Position', [0.1 0.0 0.4 0.1], ...
-                                        'Units', 'Normalized');
+                                        'Units', 'Normalized', ...
+                                        'Position', [0.1 0.0 0.4 0.1]);
 
             obj.hButtonClearAll = uicontrol('Style', 'pushbutton', ...
                                         'Parent', obj.hBasesPanel, ...
@@ -112,65 +108,33 @@ classdef TransformCoding < GUIs.base
                                         'Units', 'Normalized', ...
                                         'Position', [0.5 0.0 0.4 0.1]);
 
+            % Selected block
             obj.hSelectedBlockPanel = uipanel('Parent', obj.hMainWindow, ...
                                     'BackgroundColor', 'white', ...
                                     'Title', 'Selected Block', ...
                                     'FontSize', 13,  ...
                                     'FontName', 'Courier', ...
-                                    'Position', [0.45 0.02 0.45 0.6]);
-           
-            %obj.hSelectedBlockAxes = axes('Parent', obj.hSelectedBlockPanel, ...
-            %                            'Box', 'on', ...
-            %                            'Visible', 'off', ...
-            %                            'Position', [.01 .55 .3 .5], ...
-            %                            'Units', 'Normalized');
-            %dat = rand(8); 
-            %cnames = {'1','2','3','4','5','6','7','8'}; 
-            obj.hDataTable{1} = uitable('Data',[], ...
-                                        'ColumnName', [], ...
-                                        'Parent', obj.hSelectedBlockPanel, ...
-                                        'Units', 'Normalized', ...
-                                        'ColumnFormat', {'bank','bank','bank','bank','bank','bank','bank','bank'},...
-                                        'ColumnEditable', true(1,1:8), ...
-                                        'RowStriping', 'on', ...
-                                        'FontSize', 11,...
-                                        'FontName', 'Courier New',...
-                                        'ColumnWidth', num2cell(ones(1,8).*65), ...
-                                        'Position', [0.01 0.01 0.99 0.42]);
-            obj.hDataTable{2} = uitable('Data',[], ...
-                                        'ColumnName', [], ...
-                                        'Parent', obj.hSelectedBlockPanel, ...
-                                        'Units', 'Normalized', ...
-                                        'ColumnFormat', {'bank','bank','bank','bank','bank','bank','bank','bank'},...
-                                        'ColumnEditable', true(1,1:8), ...
-                                        'RowStriping', 'on', ...
-                                        'FontSize', 11,...
-                                        'FontName', 'Courier New',...
-                                        'ColumnWidth', num2cell(ones(1,8).*65), ...
-                                        'Position', [0.01 0.51 0.99 0.42]);
+                                    'Position', [0.01 0.01 0.98 0.47]);
 
-           
+            % Tables for block data
+            titles = {'Input Y Pixel Values', 'Dequantised DCT Coefficients', 'DCT Coefficients', 'Inverse Transform Coefficients', 'Quantised DCT Coefficients' ,'Output Y Pixel Values'};
+            for i=1:6
+                c = (0.01+(0.32*floor((i-1)/2)));
+                obj.createTextElement([c (0.45+(rem(i,2).*0.5)) 0.2 0.05], titles{i}, 9, 'on', 'white', obj.hSelectedBlockPanel);
+                obj.hDataTable{i} = uitable('Data',[], ...
+                                        'ColumnName', [], ...
+                                        'Parent', obj.hSelectedBlockPanel, ...
+                                        'Units', 'Normalized', ...
+                                        'RowStriping', 'on', ...
+                                        'RowName', [],...
+                                        'FontSize', 10,...
+                                        'FontName', 'Courier New',...
+                                        'ColumnWidth', num2cell(ones(1,8).*40), ...
+                                        'Position', [c (0.01+(rem(i,2).*0.5)) 0.31 0.42]);
+            end
 
             linkaxes([obj.hInputImageAxes obj.hOutputImageAxes]);
 
-            obj.updateAxes();
-        end
-
-        function quantisationFactorChange(obj, source)
-            set(source, 'Enable', 'off');
-            drawnow;
-            % add monitor
-            %addlistener(obj.encoderInstance, 'reconstruction', 'PostSet', @(source, event)obj.encoderFinishedQuantisationChange(source, event));            
-            % Spawn on thread
-
-            
-            % Just call directly
-            obj.encoderInstance.encode('DoEntropyCode', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap, 'Quality', ceil(get(source, 'Value')));
-
-            %disp('Finished quantisation change.');
-            
-            set(source, 'Enable', 'on');
-            
             obj.updateAxes();
         end
 
@@ -180,20 +144,10 @@ classdef TransformCoding < GUIs.base
                 selectedPoint = get(obj.hInputImageAxes, 'CurrentPoint');
                 bx = (floor((selectedPoint(1,1)-1) / 8)*8) + 1;
                 by = (floor((selectedPoint(1,2)-1) / 8)*8) + 1;
-                %obj.hSelectedBlock =
-                %Subsampling.subsampledImageShow(obj.encoderInstance.imageSt
-                %ruct, 'Parent', obj.hSelectedBlockAxes, 'Channel', 'y', 'Block', [bx by 8 8]);
-                if ~isempty(obj.hSelectedBlockRectangle)
-                    cellfun(@(rect)delete(rect), obj.hSelectedBlockRectangle);
-                end
-                obj.hSelectedBlockRectangle{1} = rectangle('Parent', obj.hInputImageAxes, 'Position', [bx by 8 8], 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
-                obj.hSelectedBlockRectangle{2} = rectangle('Parent', obj.hOutputImageAxes, 'Position', [bx by 8 8], 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
+                obj.selectedBlockCoords = [bx by 8 8];
 
-                set(obj.hDataTable{1}, 'Data', obj.encoderInstance.coefficients{1}(by:by+7, bx:bx+7));
-                
-                set(obj.hDataTable{2}, 'Data', obj.encoderInstance.quantisedCoefficients{1}(by:by+7, bx:bx+7));
-            else
-               %disp(get(obj.hOutputImageAxes, 'CurrentPoint'))
+                obj.updateDataTables();
+                obj.updateAxes();
             end
         end
 
@@ -267,14 +221,65 @@ classdef TransformCoding < GUIs.base
         end
         
         function updateAxes(obj)
-            obj.hInputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);           
-            set(obj.hInputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
+            if ~isempty(obj.hSelectedBlockRectangle)
+                cellfun(@(rect)delete(rect), obj.hSelectedBlockRectangle);
+                obj.hSelectedBlockRectangle = [];
+            end
+            if ~isempty(obj.encoderInstance)
+                obj.hInputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);
+                set(obj.hInputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
 
-            obj.hOutputImage = Subsampling.subsampledImageShow(obj.encoderInstance.reconstruction, 'Parent', obj.hOutputImageAxes);           
-            set(obj.hOutputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
-            
-            obj.hSelectedBlockRectangle = [];
+                obj.hOutputImage = Subsampling.subsampledImageShow(obj.encoderInstance.reconstruction, 'Parent', obj.hOutputImageAxes);
+                set(obj.hOutputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
+
+                set(obj.hPSNRText, 'String', ['(PSNR: ' sprintf('%.2f', Utilities.peakSignalToNoiseRatio(obj.encoderInstance.reconstruction.y, obj.inputMatrix(:,:,1))) ' dB)']);
+
+                if ~isempty(obj.selectedBlockCoords)
+                    obj.hSelectedBlockRectangle{1} = rectangle('Parent', obj.hInputImageAxes, 'Position', obj.selectedBlockCoords, 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
+                    obj.hSelectedBlockRectangle{2} = rectangle('Parent', obj.hOutputImageAxes, 'Position', obj.selectedBlockCoords, 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
+                end
+            end
         end
 
+        function clearDataTables(obj)
+            for i=1:length(obj.hDataTable)
+                set(obj.hDataTable{i}, 'Data', []);
+            end
+        end
+
+        function updateDataTables(obj)
+                if ~isempty(obj.selectedBlockCoords)
+                    bx = obj.selectedBlockCoords(1);
+                    by = obj.selectedBlockCoords(2);
+                    set(obj.hDataTable{1}, 'Data', round(obj.encoderInstance.imageMatrix(by:by+7, bx:bx+7,1)));
+                    set(obj.hDataTable{3}, 'Data', round(obj.encoderInstance.coefficients{1}(by:by+7, bx:bx+7)));
+                    set(obj.hDataTable{5}, 'Data', round(obj.encoderInstance.quantisedCoefficients{1}(by:by+7, bx:bx+7)));
+                    set(obj.hDataTable{2}, 'Data', round(obj.encoderInstance.deQuantisedCoefficients{1}(by:by+7, bx:bx+7)));
+                    set(obj.hDataTable{4}, 'Data', round(obj.encoderInstance.inverseTransformedData{1}(by:by+7, bx:bx+7)));
+                    set(obj.hDataTable{6}, 'Data', round(obj.encoderInstance.inverseTransformedAndShiftedData{1}(by:by+7, bx:bx+7)));
+                end
+        end
+
+        function changeInput(obj, source)
+            % Call super class implementation which does the loading etc
+            if obj.loadedImage ~= get(source, 'Value')
+                obj.changeInput@GUIs.base(source);
+                obj.selectedBlockCoords = [];
+                obj.quantisationFactorChange(obj.hQuantisationSlider);
+            end
+        end
+
+        function quantisationFactorChange(obj, source)
+            if ~isempty(obj.inputMatrix)
+                set(source, 'Enable', 'off');
+                drawnow;
+                obj.encoderInstance = JPEG.encoder(obj.inputMatrix);
+                obj.encoderInstance.encode('DoAtagesAfterQuantisation', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap, 'Quality', ceil(get(source, 'Value')));
+                set(source, 'Enable', 'on');
+                obj.updateDataTables();
+                obj.updateAxes();
+            end
+        end
     end
 end
+
