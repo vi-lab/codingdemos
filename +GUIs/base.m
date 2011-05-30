@@ -31,6 +31,7 @@ classdef base < handle
        hInputImageSelect
 
        examplesDirectory
+       loadedImage = 0;
 
        inputMatrix
        imageStruct
@@ -188,11 +189,10 @@ classdef base < handle
                                         'FontName', 'Courier New',...
                                         'Units', 'Normalized', ...
                                         'Position', position,...
-                                        'String', 'a|b|c',...
+                                        'String', obj.getExampleImagesFromExamplesDirectory(),...
                                         'Callback', @(source, event)(obj.changeInput(source)));
             p = getpixelposition(obj.hInputImageSelect);
             setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
-            set(obj.hInputImageSelect, 'String', obj.getExampleImagesFromExamplesDirectory());
         end
 
         function ax = createAxesForImage(obj, position, parent)
@@ -237,7 +237,8 @@ classdef base < handle
             % variable to the resulting YCbCr image.
 
             files = get(source, 'String');
-            fileName = fullfile(obj.examplesDirectory, files{get(source, 'Value')});
+            obj.loadedImage = get(source, 'Value');
+            fileName = fullfile(obj.examplesDirectory, files{obj.loadedImage});
             imageRGB = imread(fileName);
 
             if isempty(imageRGB)
