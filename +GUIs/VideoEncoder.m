@@ -32,12 +32,6 @@ classdef VideoEncoder < GUIs.base
                 obj.videoEncoder = ve;
             end
 
-            % extra toolbar button to recreate video
-            icon = imresize(imread('+GUIs/images/icons/refresh_48.png','BackgroundColor',[1 1 1]), [16 16]);
-            uitoggletool(obj.hMainToolbar,'CData',icon,'TooltipString','Reload Video', ...
-                                                    'Separator','on', ...
-                                                    'ClickedCallback', @(source, event)(obj.reloadVideo(source)));
-
             % UI Elements
             obj.hRepeatCheckBox = uicontrol('Style', 'checkbox', ...
                                     'Parent', obj.hExternalPanel, ...
@@ -234,18 +228,21 @@ classdef VideoEncoder < GUIs.base
             end
         end
 
+        function resetPlayers(obj)
+            for j=1:length(obj.videoPlayers)
+                obj.videoPlayers{j}.frame = 1;
+            end
+            obj.outputStatsToPlot = [];
+        end
+
         function showNextFrame(obj)
             for i=1:length(obj.videoPlayers)
                 obj.videoPlayers{i}.frame = obj.videoPlayers{i}.frame + 1;
                 if i == 1
                     if obj.videoPlayers{i}.frame > size(obj.videoPlayers{i}.data, 4)
-                        if obj.repeatVideo
-                            obj.videoPlayers{i}.frame = 1;
-                            obj.outputStatsToPlot = [];
-                        else
-                            obj.videoPlayers{i}.frame = 0;
+                        obj.resetPlayers();
+                        if ~obj.repeatVideo
                             obj.stopVideo();
-                            obj.outputStatsToPlot = [];
                             return;
                         end
                     end
@@ -305,7 +302,13 @@ classdef VideoEncoder < GUIs.base
                             bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 2 % frameBits
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.frameBits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 3 % motionVectorBits
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 4 % total bits
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
                             bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
@@ -371,6 +374,7 @@ classdef VideoEncoder < GUIs.base
 
         function reloadVideo(obj, source)
             obj.stopVideo();
+            disp('This is either the first time you are running the demo and the demo cache must be created, or you have requested a video recode.');
             obj.videoEncoder = Video.encoder('examples/imseq/vid:0000:0024:.jpg');
             obj.videoEncoder.encode('gop', 'ipppp', 'verbose', true, 'Quality', 80, 'BlockMatchingSearchDistance', 8, 'BlockMatching', 'DSA');
             ve = obj.videoEncoder;
