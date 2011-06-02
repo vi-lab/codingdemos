@@ -10,6 +10,7 @@ classdef VideoEncoder < GUIs.base
         hStepButton
         hRepeatCheckBox
         hShowResidualsCheckBox
+        hStatSelect
 
         videoStatAxes
         videoBitRateAxes
@@ -17,7 +18,8 @@ classdef VideoEncoder < GUIs.base
         videoPlayers
         playTimer
         repeatVideo = false;
-        frameStatsToPlot = [];
+        outputStatsToPlot = [];
+        outputPlotType = 1;
     end
 
     methods
@@ -139,7 +141,7 @@ classdef VideoEncoder < GUIs.base
             obj.setVideoPlayer('input', obj.videoEncoder.imageMatrix, ...
                                 [0.01 0.65 0.28 0.28], [0 -0.2 0.2 0.2]);
             obj.setVideoPlayer('output', obj.videoEncoder.reconstructedVideo, ...
-                                [0.69 0.35 0.28 0.28], [-0.2 -0.2 0.2 0.2]);
+                                [0.69 0.25 0.28 0.28], [-0.2 -0.2 0.2 0.2]);
             obj.setVideoPlayer('residual', obj.videoEncoder.predictionErrorFrame, ...
                                 [0.4 0.75 0.2 0.2], [-0.1 -0.1 0.2 0.2]);
             obj.setVideoPlayer('reconstructedresidual', obj.videoEncoder.reconstructedPredictionErrorFrame, ...
@@ -148,7 +150,17 @@ classdef VideoEncoder < GUIs.base
                                 [0.01 0.25 0.28 0.28], [0 -0.1 0.2 0.2]);
 
             obj.videoBitRateAxes = axes('Position', [0.69 0.65 0.3 0.3], 'Parent', obj.hExternalPanel);
-            obj.videoStatAxes = axes('Position', [0.69 0.05 0.3 0.3], 'Parent', obj.hExternalPanel);
+
+            obj.hStatSelect = uicontrol('Style', 'popupmenu', ...
+                                        'Parent', obj.hExternalPanel, ...
+                                        'FontSize', 11, ...
+                                        'FontName', 'Courier New',...
+                                        'Units', 'Normalized', ...
+                                        'Position',[0.69 0.6 0.25 0.03],...
+                                        'String', {'Total bits per Frame (split bar)','Residual coding bits per Frame','Motion vectors bits per Frame', 'Total bits per Frame (single bar)','PSNR per Frame'},...
+                                        'Callback', @(source, event)(obj.changeStatsOnDisplay(source)));
+
+            %obj.videoStatAxes = axes('Position', [0.69 0.05 0.3 0.3], 'Parent', obj.hExternalPanel);
 
 
             obj.toggleShowResiduals(obj.hShowResidualsCheckBox);
@@ -188,6 +200,30 @@ classdef VideoEncoder < GUIs.base
             obj.videoPlayers{playerID}.parent = ax;
         end
 
+        function videoClick(obj, source, playerID)
+            % maximise video
+            container = get(get(source, 'Parent'), 'Parent');
+            order = get(obj.hExternalPanel, 'Children');
+            order(container == order) = [];
+            set(obj.hExternalPanel, 'Children', [container; order]);
+            switch obj.videoPlayers{playerID}.zoomstate
+                case 0
+                    set(container, 'Position', obj.videoPlayers{playerID}.position + obj.videoPlayers{playerID}.zoomdelta);
+                    obj.videoPlayers{playerID}.zoomstate = 1;
+                case 1
+                    set(container, 'Position', [0.1 0.1 0.8 0.8]);
+                    obj.videoPlayers{playerID}.zoomstate = 2;
+                case 2
+                    set(container, 'Position', obj.videoPlayers{playerID}.position);
+                    obj.videoPlayers{playerID}.zoomstate = 0;
+            end
+        end
+
+        function changeStatsOnDisplay(obj, source)
+            obj.outputPlotType = get(source, 'Value');
+            obj.outputStatsToPlot = [];
+        end
+
         function playVideos(obj)
             % update frame by frame, on a timer callback?
             if isempty(obj.playTimer)
@@ -201,14 +237,17 @@ classdef VideoEncoder < GUIs.base
         function showNextFrame(obj)
             for i=1:length(obj.videoPlayers)
                 obj.videoPlayers{i}.frame = obj.videoPlayers{i}.frame + 1;
-                if obj.videoPlayers{i}.frame > size(obj.videoPlayers{i}.data, 4)
-                    if obj.repeatVideo
-                        obj.videoPlayers{i}.frame = 1;
-                        obj.frameStatsToPlot = [];
-                    else
-                        obj.stopVideo();
-                        obj.frameStatsToPlot = [];
-                        return;
+                if i == 1
+                    if obj.videoPlayers{i}.frame > size(obj.videoPlayers{i}.data, 4)
+                        if obj.repeatVideo
+                            obj.videoPlayers{i}.frame = 1;
+                            obj.outputStatsToPlot = [];
+                        else
+                            obj.videoPlayers{i}.frame = 0;
+                            obj.stopVideo();
+                            obj.outputStatsToPlot = [];
+                            return;
+                        end
                     end
                 end
                 frame = obj.videoPlayers{i}.data(:,:,:,obj.videoPlayers{i}.frame);
@@ -252,34 +291,32 @@ classdef VideoEncoder < GUIs.base
 
                 % update stats graph
                 if i == 1
-                    obj.frameStatsToPlot = [obj.frameStatsToPlot obj.videoEncoder.frameStatistics{obj.videoPlayers{i}.frame}.psnr];
-                    plot(obj.videoStatAxes, obj.frameStatsToPlot);
-                    xlim(obj.videoStatAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
-                    %ylim(obj.videoStatAxes, [10 50]);
-
-                    % TODO: This will plot bit counts when I have them
-                    bar(obj.videoBitRateAxes, obj.frameStatsToPlot);
-                    xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                    %obj.psnrPlot = [obj.psnrPlot obj.videoEncoder.frameStatistics{obj.videoPlayers{i}.frame}.psnr];
+                    %plot(obj.videoStatAxes, obj.psnrPlot);
+                    %xlim(obj.videoStatAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                    %ylim(obj.videoStatAxes, [10 50])
+                    stats = obj.videoEncoder.getStatistics();
+                    if isempty(obj.outputStatsToPlot)
+                        obj.outputStatsToPlot = zeros(1, size(obj.videoEncoder.imageMatrix, 4));
+                    end
+                    switch obj.outputPlotType
+                        case 1 % combined
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                        case 2 % frameBits
+                        case 3 % motionVectorBits
+                        case 4 % total bits
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                        case 5 % psnr
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.psnr;
+                            plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            %ylim(obj.videoBitRateAxes, [10 50])
+                    end
                 end
-            end
-        end
-
-        function videoClick(obj, source, playerID)
-            % maximise video
-            container = get(get(source, 'Parent'), 'Parent');
-            order = get(obj.hExternalPanel, 'Children');
-            order(container == order) = [];
-            set(obj.hExternalPanel, 'Children', [container; order]);
-            switch obj.videoPlayers{playerID}.zoomstate
-                case 0
-                    set(container, 'Position', obj.videoPlayers{playerID}.position + obj.videoPlayers{playerID}.zoomdelta);
-                    obj.videoPlayers{playerID}.zoomstate = 1;
-                case 1
-                    set(container, 'Position', [0.1 0.1 0.8 0.8]);
-                    obj.videoPlayers{playerID}.zoomstate = 2;
-                case 2
-                    set(container, 'Position', obj.videoPlayers{playerID}.position);
-                    obj.videoPlayers{playerID}.zoomstate = 0;
             end
         end
 
@@ -288,15 +325,21 @@ classdef VideoEncoder < GUIs.base
             obj.togglePlayVideo(obj.hPlayPauseButton);
         end
 
+        function toggleLoopVideo(obj,source)
+            obj.repeatVideo = ~obj.repeatVideo;
+        end
+
         function togglePlayVideo(obj,source)
             if get(source, 'Value')
                 obj.playVideos();
                 set(source, 'String', 'Pause');
                 set(obj.hStepButton, 'Enable', 'off');
+                %set(obj.hStatSelect, 'Enable', 'off');
             else
                 obj.clearTimer();
                 set(source, 'String', 'Play');
                 set(obj.hStepButton, 'Enable', 'on');
+                set(obj.hStatSelect, 'Enable', 'on')
             end
         end
 
@@ -311,10 +354,6 @@ classdef VideoEncoder < GUIs.base
                     set(get(obj.videoPlayers{i}.parent, 'Parent'), 'Visible', state);
                 end
             end
-        end
-
-        function toggleLoopVideo(obj,source)
-            obj.repeatVideo = ~obj.repeatVideo;
         end
 
         function handleCloseRequest(obj, source, event)

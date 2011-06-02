@@ -274,7 +274,7 @@ classdef TransformCoding < GUIs.base
                 set(source, 'Enable', 'off');
                 drawnow;
                 obj.encoderInstance = JPEG.encoder(obj.inputMatrix);
-                obj.encoderInstance.encode('DoAtagesAfterQuantisation', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap, 'Quality', ceil(get(source, 'Value')));
+                obj.encoderInstance.encode('DoStagesAfterQuantisation', false, 'DoReconstruction', true, 'CoefficientMap', obj.coefficientMap, 'Quality', ceil(get(source, 'Value')));
                 set(source, 'Enable', 'on');
                 obj.updateDataTables();
                 obj.updateAxes();
