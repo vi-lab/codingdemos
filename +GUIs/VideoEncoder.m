@@ -6,6 +6,7 @@ classdef VideoEncoder < GUIs.base
         videoEncoder
 
         hFrameTextInfo
+        hDiagramElements
         hPlayPauseButton
         hStepButton
         hRepeatCheckBox
@@ -72,6 +73,14 @@ classdef VideoEncoder < GUIs.base
 
             obj.hFrameTextInfo = obj.createTextElement([0.01 0.01 0.7 0.04], '(Frame info)', 14, 'on', 'white', obj.hExternalPanel);
 
+            obj.hStatSelect = uicontrol('Style', 'popupmenu', ...
+                                        'Parent', obj.hExternalPanel, ...
+                                        'FontSize', 11, ...
+                                        'FontName', 'Courier New',...
+                                        'Units', 'Normalized', ...
+                                        'Position',[0.69 0.6 0.25 0.03],...
+                                        'String', {'Total bits per Frame (split bar)','Residual coding bits per Frame','Motion vectors bits per Frame', 'Total bits per Frame (single bar)','PSNR per Frame'},...
+                                        'Callback', @(source, event)(obj.changeStatsOnDisplay(source)));
             % draw encoder
             mainCanvas = axes('Parent', obj.hExternalPanel, ...
                                         'Box', 'off', ...
@@ -86,40 +95,40 @@ classdef VideoEncoder < GUIs.base
             obj.lineWithArrowHead([0.3 0.745], [0.33 0.745]); % in to sum
 
             rectangle('Position', [0.33 0.72 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node
-            obj.createTextElement([0.35 0.66 0.07 0.03], 'subtract', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.66 0.07 0.03], 'subtract', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.36 0.745], [0.4 0.745]); % sum to t/q
 
             box = rectangle('Position', [0.40 0.70 0.08 0.10], 'Parent', mainCanvas); % t/q
-            obj.createTextElement([0.405 0.705 0.07 0.09],'Transform/Quantisation', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{2} = obj.createTextElement([0.405 0.705 0.07 0.09],'Transform/Quantisation', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.48 0.745], [0.55 0.745]); %t/q to entropy
 
             rectangle('Position', [0.55 0.70 0.08 0.10], 'Parent', mainCanvas); % entropy
-            obj.createTextElement([0.555 0.705 0.07 0.09], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{3} = obj.createTextElement([0.555 0.705 0.07 0.09], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.63 0.745], [0.69 0.745]); % entropy to out
 
             obj.lineWithArrowHead([0.5 0.745], [0.5 0.6]); % t/q to inv t/q
 
             rectangle('Position', [0.45 0.50 0.10 0.10], 'Parent', mainCanvas); % inv t/q
-            obj.createTextElement([0.455 0.505 0.09 0.09], 'Inverse Quantisation/Transform', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{4} = obj.createTextElement([0.455 0.505 0.09 0.09], 'Inverse Quantisation/Transform', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.5 0.5], [0.5 0.45]); % inv t/q to reconstruction adder node
 
             rectangle('Position', [0.485 0.40 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node after inv t/q
-            obj.createTextElement([0.43 0.435 0.04 0.03], 'add', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{5} = obj.createTextElement([0.43 0.435 0.04 0.03], 'add', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.5 0.4], [0.5 0.35]); % recon to buffer
 
             rectangle('Position', [0.47 0.25 0.10 0.10], 'Parent', mainCanvas); % buffer
-            obj.createTextElement([0.475 0.255 0.09 0.09], 'Frame Buffer', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{6} = obj.createTextElement([0.475 0.255 0.09 0.09], 'Frame Buffer', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.47 0.3], [0.4 0.3]); % buffer to mec (ref)
             obj.lineWithArrowHead([0.31 0.745], [0.31 0.35]); % input to mec (ref)
 
             rectangle('Position', [0.30 0.25 0.10 0.10], 'Parent', mainCanvas); % mec
-            obj.createTextElement([0.305 0.255 0.09 0.09], 'Motion Estimation/Compensation', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{7} = obj.createTextElement([0.305 0.255 0.09 0.09], 'Motion Estimation/Compensation', 10, 'on', 'white', obj.hExternalPanel);
 
             line([0.35 0.35], [0.25 0.2], 'Color', [0 0 0]);
             line([0.35 0.6], [0.2 0.2], 'Color', [0 0 0]);
@@ -127,35 +136,30 @@ classdef VideoEncoder < GUIs.base
 
             obj.lineWithArrowHead([0.345 0.35], [0.345 0.72]); % Mec to input sum
             obj.lineWithArrowHead([0.345 0.425], [0.485 0.425]); % prediction to recon summer
+            
+            obj.hDiagramElements{8} = obj.createTextElement([0.01 0.93 0.25 0.03], 'Input Frames', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{9} = obj.createTextElement([0.69 0.53 0.25 0.03], 'Output Frames', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{10} = obj.createTextElement([0.01 0.53 0.25 0.03], 'Motion Vectors', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{11} = obj.createTextElement([0.69 0.95 0.25 0.03], 'Output Data per Frame', 10, 'on', 'white', obj.hExternalPanel);
+            %obj.hDiagramElements{12} = obj.createTextElement([0.4 0.95 0.25 0.03], 'Residual Frame', 10, 'on', 'white', obj.hExternalPanel);
+            %obj.hDiagramElements{13} = obj.createTextElement([0.4 0.65 0.25 0.03], 'Coded Residual Frame', 10, 'on', 'white', obj.hExternalPanel);
 
             xlim(mainCanvas, [0 1]);
             ylim(mainCanvas, [0 1]);
 
             % Axes
             obj.setVideoPlayer('input', obj.videoEncoder.imageMatrix, ...
-                                [0.01 0.65 0.28 0.28], [0 -0.2 0.2 0.2]);
+                                [0.01 0.65 0.28 0.28], [0 -0.15 0.2 0.2]);
             obj.setVideoPlayer('output', obj.videoEncoder.reconstructedVideo, ...
                                 [0.69 0.25 0.28 0.28], [-0.2 -0.2 0.2 0.2]);
             obj.setVideoPlayer('residual', obj.videoEncoder.predictionErrorFrame, ...
-                                [0.4 0.75 0.2 0.2], [-0.1 -0.1 0.2 0.2]);
+                                [0.4 0.75 0.2 0.2], [-0.1 -0.2 0.2 0.2]);
             obj.setVideoPlayer('reconstructedresidual', obj.videoEncoder.reconstructedPredictionErrorFrame, ...
-                                [0.4 0.45 0.2 0.2], [-0.1 -0.2 0.2 0.2]);
+                                [0.4 0.45 0.2 0.2], [-0.1 -0.3 0.2 0.2]);
             obj.setVideoPlayer('motionvectors', obj.videoEncoder.reconstructedVideo, ...
-                                [0.01 0.25 0.28 0.28], [0 -0.1 0.2 0.2]);
+                                [0.01 0.25 0.28 0.28], [0 -0.2 0.2 0.2]);
 
             obj.videoBitRateAxes = axes('Position', [0.69 0.65 0.3 0.3], 'Parent', obj.hExternalPanel);
-
-            obj.hStatSelect = uicontrol('Style', 'popupmenu', ...
-                                        'Parent', obj.hExternalPanel, ...
-                                        'FontSize', 11, ...
-                                        'FontName', 'Courier New',...
-                                        'Units', 'Normalized', ...
-                                        'Position',[0.69 0.6 0.25 0.03],...
-                                        'String', {'Total bits per Frame (split bar)','Residual coding bits per Frame','Motion vectors bits per Frame', 'Total bits per Frame (single bar)','PSNR per Frame'},...
-                                        'Callback', @(source, event)(obj.changeStatsOnDisplay(source)));
-
-            %obj.videoStatAxes = axes('Position', [0.69 0.05 0.3 0.3], 'Parent', obj.hExternalPanel);
-
 
             obj.toggleShowResiduals(obj.hShowResidualsCheckBox);
             obj.togglePlayVideo(obj.hPlayPauseButton);
@@ -202,6 +206,7 @@ classdef VideoEncoder < GUIs.base
             set(obj.hExternalPanel, 'Children', [container; order]);
             switch obj.videoPlayers{playerID}.zoomstate
                 case 0
+                    obj.hideControls();
                     set(container, 'Position', obj.videoPlayers{playerID}.position + obj.videoPlayers{playerID}.zoomdelta);
                     obj.videoPlayers{playerID}.zoomstate = 1;
                 case 1
@@ -210,7 +215,30 @@ classdef VideoEncoder < GUIs.base
                 case 2
                     set(container, 'Position', obj.videoPlayers{playerID}.position);
                     obj.videoPlayers{playerID}.zoomstate = 0;
+                    obj.showControls();
             end
+        end
+        
+        function hideControls(obj)
+            for i=1:length(obj.hDiagramElements)
+                set(obj.hDiagramElements{i}, 'Visible', 'off');
+            end
+            set(obj.hStatSelect, 'Visible', 'off');
+        end
+
+        function showControls(obj)
+            for i=1:length(obj.videoPlayers)
+                if obj.videoPlayers{i}.zoomstate ~= 0
+                    return;
+                end
+            end
+            if get(obj.hShowResidualsCheckBox, 'Value')
+                return;
+            end
+            for i=1:length(obj.hDiagramElements)
+                set(obj.hDiagramElements{i}, 'Visible', 'on');
+            end
+            set(obj.hStatSelect, 'Visible', 'on');
         end
 
         function changeStatsOnDisplay(obj, source)
@@ -282,16 +310,13 @@ classdef VideoEncoder < GUIs.base
                         obj.videoPlayers{i}.hFrame = imshow(ycbcr2rgb(frame), 'Parent', obj.videoPlayers{i}.parent);
                         set(obj.videoPlayers{i}.hFrame, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source, i)));
                         hold(obj.videoPlayers{i}.parent, 'on');
-                        quiver(obj.videoPlayers{i}.parent, x, y, u, v, 'k');
+                        qv = quiver(obj.videoPlayers{i}.parent, x, y, u, v, 'k');
                         hold(obj.videoPlayers{i}.parent, 'off');
+                        set(qv, 'ButtonDownFcn', @(source, evt)(obj.videoClick(obj.videoPlayers{i}.hFrame, i)));
                 end
 
                 % update stats graph
                 if i == 1
-                    %obj.psnrPlot = [obj.psnrPlot obj.videoEncoder.frameStatistics{obj.videoPlayers{i}.frame}.psnr];
-                    %plot(obj.videoStatAxes, obj.psnrPlot);
-                    %xlim(obj.videoStatAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
-                    %ylim(obj.videoStatAxes, [10 50])
                     stats = obj.videoEncoder.getStatistics();
                     if isempty(obj.outputStatsToPlot)
                         obj.outputStatsToPlot = zeros(1, size(obj.videoEncoder.imageMatrix, 4));
@@ -317,7 +342,6 @@ classdef VideoEncoder < GUIs.base
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.psnr;
                             plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
-                            %ylim(obj.videoBitRateAxes, [10 50])
                     end
                 end
             end
@@ -337,7 +361,6 @@ classdef VideoEncoder < GUIs.base
                 obj.playVideos();
                 set(source, 'String', 'Pause');
                 set(obj.hStepButton, 'Enable', 'off');
-                %set(obj.hStatSelect, 'Enable', 'off');
             else
                 obj.clearTimer();
                 set(source, 'String', 'Play');
@@ -349,8 +372,10 @@ classdef VideoEncoder < GUIs.base
         function toggleShowResiduals(obj,source)
             if get(source, 'Value')
                 state = 'on';
+                obj.hideControls();
             else
                 state = 'off';
+                obj.showControls();
             end
             for i=1:length(obj.videoPlayers)
                 if strcmp(obj.videoPlayers{i}.type, 'residualmatrixdata')
