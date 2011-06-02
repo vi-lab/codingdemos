@@ -16,11 +16,12 @@ classdef encoder < JPEG.encoder
         frameData
         motionVectors
         huffmanTablesPerGOP
+        codedMotionVectors
 
         predictionErrorFrame
         reconstructedPredictionErrorFrame
 
-        frameStatistics
+        gopStatistics
 
         reconstructedVideo
     end
@@ -178,6 +179,7 @@ classdef encoder < JPEG.encoder
                 if strcmp(frameType,'i')
                     % 2) if I frame do coding as per JPEG (call methods on
                     % parent)
+                    obj.setCodingParameters('DoCustomHuffmanTables', false);
                     obj.transformAndEntropyCode();
 
                     % Store frame data
@@ -200,6 +202,7 @@ classdef encoder < JPEG.encoder
                     obj.predictionErrorFrame{GOPIndex, frameIndex} = (obj.predictionErrorFrame{GOPIndex, frameIndex}+255)/2;
                     obj.imageStruct = Subsampling.ycbcrImageToSubsampled(obj.predictionErrorFrame{GOPIndex, frameIndex}, 'Mode', obj.chromaSamplingMode );
 
+                    obj.setCodingParameters('DoCustomHuffmanTables', true);
                     obj.transformAndEntropyCode();
 
                     % Store frame data
@@ -218,12 +221,14 @@ classdef encoder < JPEG.encoder
                     obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
                 end
                 % Stats
-                obj.frameStatistics{timeMatrixIndex}.psnr = Utilities.peakSignalToNoiseRatio(obj.reconstructedVideo(:,:,1, timeMatrixIndex), obj.imageMatrix(:,:,1, timeMatrixIndex));
-                if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(obj.frameStatistics{timeMatrixIndex}.psnr)]); end
+                psnr = Utilities.peakSignalToNoiseRatio(obj.reconstructedVideo(:,:,1, timeMatrixIndex), obj.imageMatrix(:,:,1, timeMatrixIndex));
+                obj.gopStatistics{GOPIndex}.frames{frameIndex}.psnr = psnr;
+                if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(psnr)]); end
 
                 % Collect MVs for Huffman code generation
                 if ~isempty(obj.motionVectors{GOPIndex, frameIndex})
-                    mvData{GOPIndex} = [mvData{GOPIndex}; obj.motionVectors{GOPIndex, frameIndex}(:,1:2)];
+                    values = obj.motionVectors{GOPIndex, frameIndex}(:,:,1:2);
+                    mvData{GOPIndex} = [mvData{GOPIndex}; values(:)];
                 end
             end
 
@@ -235,9 +240,18 @@ classdef encoder < JPEG.encoder
                         continue;
                     end
                     [obj.huffmanTablesPerGOP{gop}.motionVectors.symbolValues, obj.huffmanTablesPerGOP{gop}.motionVectors.codeLengths] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( mvData{gop} );
+
+                    % For each frame code MVs
+                    huffmanCodes = obj.createHuffmanCodes(obj.huffmanTablesPerGOP{gop}.motionVectors.codeLengths, obj.huffmanTablesPerGOP{gop}.motionVectors.symbolValues);
+                    for frame=1:size(obj.motionVectors,2)
+                        if ~isempty(obj.motionVectors{gop, frame})
+                            % Column order of values, might need to reorder
+                            % to make decoding easier
+                            values = obj.motionVectors{gop, frame}(:,:,1:2);
+                            obj.codedMotionVectors{gop, frame} = EntropyCoding.encodeDCValues(values(:), huffmanCodes);
+                        end
+                    end
                 end
-                % For each frame code MVs
-                
             end
 
             % Construct bitstream if desired
@@ -359,6 +373,10 @@ classdef encoder < JPEG.encoder
             end
         end
 
+        function stats = getStatistics(obj)
+            stats = obj.gopStatistics;
+        end
+
         function [GOPIndex frameIndex frameType] = getGOPAndFrameIndex(obj, timeMatrixIndex)
             GOPIndex = ceil(timeMatrixIndex/obj.GOPs.numberOfFramesPerGOP);
             frameIndex = timeMatrixIndex - ((GOPIndex-1)*obj.GOPs.numberOfFramesPerGOP);
@@ -430,8 +448,15 @@ classdef encoder < JPEG.encoder
             
         end
 
-        function bits = createBitStreamForMotionVectorHuffmanTable(obj)
-            bits = logical([]);
+        function bits = createBitStreamForMotionVectorHuffmanTable(obj, GOPIndex)
+            tableLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte,...
+                                                    obj.huffmanTablesPerGOP{GOPIndex}.motionVectors.codeLengths, 'UniformOutput', false));
+            % Vi,j
+            tableValues      = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    obj.huffmanTablesPerGOP{GOPIndex}.motionVectors.symbolValues, 'UniformOutput', false));
+            bits = cat(2,...
+                tableLengthCounts,...
+                tableValues);
         end
 
         function bits = createBitStreamForVideoHeader(obj)
@@ -466,9 +491,10 @@ classdef encoder < JPEG.encoder
                             startOfFrameMarker, ...
                             frameBits ...
                             );
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.type = 'I';
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.bits = length(startOfFrameMarker) + length(frameBits);
                     else
                         startOfFrameMarker      = Utilities.hexToShort('FFB3');
-                        
                         mvBits = obj.createBitStreamForMotionVectorsForFrame(GOPIndex, frameIndex);
                         mvSegmentMarker         = Utilities.hexToShort('FFB4'); 
                         mvSegmentLength         = Utilities.decimalToByte(ceil(length(mvBits)/8));
@@ -479,6 +505,10 @@ classdef encoder < JPEG.encoder
                             mvSegmentLength, ...
                             mvBits ...
                             );
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.type = 'P';
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.frameBits = length(startOfFrameMarker) + length(frameBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.motionVectorBits = length(mvSegmentMarker) + length(mvSegmentLength) + length(mvBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.bits = obj.gopStatistics{GOPIndex}.frames{frameIndex}.frameBits + obj.gopStatistics{GOPIndex}.frames{frameIndex}.motionVectorBits;
                     end
                 end
 
@@ -489,7 +519,7 @@ classdef encoder < JPEG.encoder
                 % number of channels, subsampling mode and tables for channel
                 jpegFrameHeader     = obj.createBitStreamForFrameHeader();
                 huffmanTables       = obj.createBitStreamForHuffmanTables();
-                mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable();
+                mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable(GOPIndex);
                 mvTableLength       = Utilities.decimalToShort(length(ceil(mvTableBits/8)));
                 bits = cat(2, bits, ...
                     jpegFrameHeader, ...
@@ -499,14 +529,13 @@ classdef encoder < JPEG.encoder
                     startOfGOPMarker, ...
                     gopBits ...
                     );
+                obj.gopStatistics{GOPIndex}.headerBits = length(bits) - length(gopBits);
+                obj.gopStatistics{GOPIndex}.bits = length(bits);
             end
         end
 
-        function mvBits = createBitStreamForMotionVectorsForFrame(obj, GOPIndex, frameIndex)
-            %obj.motionVectors{GOPIndex, frameIndex}
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            mvBits = logical([1 1 1]);
+        function bits = createBitStreamForMotionVectorsForFrame(obj, GOPIndex, frameIndex)
+            bits = cell2mat(obj.codedMotionVectors{GOPIndex, frameIndex});
         end
     end       
 end 
