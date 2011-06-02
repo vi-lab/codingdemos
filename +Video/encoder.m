@@ -125,7 +125,7 @@ classdef encoder < JPEG.encoder
             % WILL CALL TO SETCODING BE ON PARENT THO?
             obj.setParameterDefaultValues@JPEG.encoder();
             % CALL SETCODING with defaults for extra params
-            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 5, ...
+            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 25, ...
                 'BlockMatching', 'FSA', 'BlockMatchingSearchDistance', 8, ...
                 'MacroBlockSize', 16, 'BlockMatchingVerbose', false, 'BlockMatchingDifferenceCalculation', 'SAD');
         end
@@ -493,6 +493,8 @@ classdef encoder < JPEG.encoder
                             );
                         obj.gopStatistics{GOPIndex}.frames{frameIndex}.type = 'I';
                         obj.gopStatistics{GOPIndex}.frames{frameIndex}.bits = length(startOfFrameMarker) + length(frameBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.frameBits = length(startOfFrameMarker) + length(frameBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.motionVectorBits = 0;
                     else
                         startOfFrameMarker      = Utilities.hexToShort('FFB3');
                         mvBits = obj.createBitStreamForMotionVectorsForFrame(GOPIndex, frameIndex);
