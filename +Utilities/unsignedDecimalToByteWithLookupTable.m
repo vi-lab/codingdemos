@@ -275,6 +275,6 @@ lookupTable = logical([0 0 0 0 0 0 0 0 ;
 1 1 1 1 1 1 1 1]);
 %end
 
-array = lookupTable(dec+1, :);
+array = lookupTable(double(dec)+1, :);
 
 end

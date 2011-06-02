@@ -15,11 +15,13 @@ classdef encoder < JPEG.encoder
 
         frameData
         motionVectors
+        huffmanTablesPerGOP
+        codedMotionVectors
 
         predictionErrorFrame
         reconstructedPredictionErrorFrame
 
-        frameStatistics
+        gopStatistics
 
         reconstructedVideo
     end
@@ -123,7 +125,7 @@ classdef encoder < JPEG.encoder
             % WILL CALL TO SETCODING BE ON PARENT THO?
             obj.setParameterDefaultValues@JPEG.encoder();
             % CALL SETCODING with defaults for extra params
-            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 5, ...
+            obj.setCodingParameters('GOP', 'ippp', 'FrameRate', 25, ...
                 'BlockMatching', 'FSA', 'BlockMatchingSearchDistance', 8, ...
                 'MacroBlockSize', 16, 'BlockMatchingVerbose', false, 'BlockMatchingDifferenceCalculation', 'SAD');
         end
@@ -164,6 +166,8 @@ classdef encoder < JPEG.encoder
             obj.motionVectors = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
             obj.predictionErrorFrame = cell(obj.GOPs.count,obj.GOPs.numberOfFramesPerGOP);
 
+            mvData = cell(1,obj.GOPs.count);
+
             for timeMatrixIndex = 1:obj.GOPs.totalNumberOfFramesInVideo
                 [GOPIndex frameIndex frameType] = obj.getGOPAndFrameIndex(timeMatrixIndex);
 
@@ -175,6 +179,7 @@ classdef encoder < JPEG.encoder
                 if strcmp(frameType,'i')
                     % 2) if I frame do coding as per JPEG (call methods on
                     % parent)
+                    obj.setCodingParameters('DoCustomHuffmanTables', false);
                     obj.transformAndEntropyCode();
 
                     % Store frame data
@@ -197,6 +202,7 @@ classdef encoder < JPEG.encoder
                     obj.predictionErrorFrame{GOPIndex, frameIndex} = (obj.predictionErrorFrame{GOPIndex, frameIndex}+255)/2;
                     obj.imageStruct = Subsampling.ycbcrImageToSubsampled(obj.predictionErrorFrame{GOPIndex, frameIndex}, 'Mode', obj.chromaSamplingMode );
 
+                    obj.setCodingParameters('DoCustomHuffmanTables', true);
                     obj.transformAndEntropyCode();
 
                     % Store frame data
@@ -215,16 +221,39 @@ classdef encoder < JPEG.encoder
                     obj.reconstructedVideo(:,:,:, timeMatrixIndex) = Subsampling.subsampledToYCbCrImage(obj.reconstruction);
                 end
                 % Stats
-                obj.frameStatistics{timeMatrixIndex}.psnr = Utilities.peakSignalToNoiseRatio(obj.reconstructedVideo(:,:,1, timeMatrixIndex), obj.imageMatrix(:,:,1, timeMatrixIndex));
-                if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(obj.frameStatistics{timeMatrixIndex}.psnr)]); end
+                psnr = Utilities.peakSignalToNoiseRatio(obj.reconstructedVideo(:,:,1, timeMatrixIndex), obj.imageMatrix(:,:,1, timeMatrixIndex));
+                obj.gopStatistics{GOPIndex}.frames{frameIndex}.psnr = psnr;
+                if obj.verbose; disp(['PSNR for frame ' num2str(timeMatrixIndex) ': ' num2str(psnr)]); end
+
+                % Collect MVs for Huffman code generation
+                if ~isempty(obj.motionVectors{GOPIndex, frameIndex})
+                    values = obj.motionVectors{GOPIndex, frameIndex}(:,:,1:2);
+                    mvData{GOPIndex} = [mvData{GOPIndex}; values(:)];
+                end
             end
 
             if obj.isEnabledStage.entropyCoding
-                % *********************************************************
-                % *********************************************************
-                % ************************** CODE MVS
+                % Collect all MVS for GOP and generate the BITS and
+                % HUFFVALS table for the MVS.
+                for gop=1:length(mvData)
+                    if isempty(mvData{gop})
+                        continue;
+                    end
+                    [obj.huffmanTablesPerGOP{gop}.motionVectors.symbolValues, obj.huffmanTablesPerGOP{gop}.motionVectors.codeLengths] = EntropyCoding.generateHuffmanCodeLengthAndSymbolTablesFromData( mvData{gop} );
+
+                    % For each frame code MVs
+                    huffmanCodes = obj.createHuffmanCodes(obj.huffmanTablesPerGOP{gop}.motionVectors.codeLengths, obj.huffmanTablesPerGOP{gop}.motionVectors.symbolValues);
+                    for frame=1:size(obj.motionVectors,2)
+                        if ~isempty(obj.motionVectors{gop, frame})
+                            % Column order of values, might need to reorder
+                            % to make decoding easier
+                            values = obj.motionVectors{gop, frame}(:,:,1:2);
+                            obj.codedMotionVectors{gop, frame} = EntropyCoding.encodeDCValues(values(:), huffmanCodes);
+                        end
+                    end
+                end
             end
-            
+
             % Construct bitstream if desired
             if obj.isEnabledStage.createBitStream
                 stream = obj.createBitStream();
@@ -343,15 +372,19 @@ classdef encoder < JPEG.encoder
                 movie(parent, mov, 1, frameRate);
             end
         end
-    end
 
-    methods (Access='protected')
+        function stats = getStatistics(obj)
+            stats = obj.gopStatistics;
+        end
 
         function [GOPIndex frameIndex frameType] = getGOPAndFrameIndex(obj, timeMatrixIndex)
             GOPIndex = ceil(timeMatrixIndex/obj.GOPs.numberOfFramesPerGOP);
             frameIndex = timeMatrixIndex - ((GOPIndex-1)*obj.GOPs.numberOfFramesPerGOP);
             frameType = obj.structureOfGOPString(frameIndex);
         end
+    end
+
+    methods (Access='protected')
 
         function stream = createBitStream(obj)
             % Stream format
@@ -415,8 +448,15 @@ classdef encoder < JPEG.encoder
             
         end
 
-        function bits = createBitStreamForMotionVectorHuffmanTable(obj)
-            bits = logical([]);
+        function bits = createBitStreamForMotionVectorHuffmanTable(obj, GOPIndex)
+            tableLengthCounts = cell2mat( arrayfun(@Utilities.decimalToByte,...
+                                                    obj.huffmanTablesPerGOP{GOPIndex}.motionVectors.codeLengths, 'UniformOutput', false));
+            % Vi,j
+            tableValues      = cell2mat( arrayfun(@Utilities.decimalToByte, ...
+                                                    obj.huffmanTablesPerGOP{GOPIndex}.motionVectors.symbolValues, 'UniformOutput', false));
+            bits = cat(2,...
+                tableLengthCounts,...
+                tableValues);
         end
 
         function bits = createBitStreamForVideoHeader(obj)
@@ -451,9 +491,12 @@ classdef encoder < JPEG.encoder
                             startOfFrameMarker, ...
                             frameBits ...
                             );
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.type = 'I';
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.bits = length(startOfFrameMarker) + length(frameBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.frameBits = length(startOfFrameMarker) + length(frameBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.motionVectorBits = 0;
                     else
                         startOfFrameMarker      = Utilities.hexToShort('FFB3');
-                        
                         mvBits = obj.createBitStreamForMotionVectorsForFrame(GOPIndex, frameIndex);
                         mvSegmentMarker         = Utilities.hexToShort('FFB4'); 
                         mvSegmentLength         = Utilities.decimalToByte(ceil(length(mvBits)/8));
@@ -464,6 +507,10 @@ classdef encoder < JPEG.encoder
                             mvSegmentLength, ...
                             mvBits ...
                             );
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.type = 'P';
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.frameBits = length(startOfFrameMarker) + length(frameBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.motionVectorBits = length(mvSegmentMarker) + length(mvSegmentLength) + length(mvBits);
+                        obj.gopStatistics{GOPIndex}.frames{frameIndex}.bits = obj.gopStatistics{GOPIndex}.frames{frameIndex}.frameBits + obj.gopStatistics{GOPIndex}.frames{frameIndex}.motionVectorBits;
                     end
                 end
 
@@ -474,7 +521,7 @@ classdef encoder < JPEG.encoder
                 % number of channels, subsampling mode and tables for channel
                 jpegFrameHeader     = obj.createBitStreamForFrameHeader();
                 huffmanTables       = obj.createBitStreamForHuffmanTables();
-                mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable();
+                mvTableBits         = obj.createBitStreamForMotionVectorHuffmanTable(GOPIndex);
                 mvTableLength       = Utilities.decimalToShort(length(ceil(mvTableBits/8)));
                 bits = cat(2, bits, ...
                     jpegFrameHeader, ...
@@ -484,14 +531,13 @@ classdef encoder < JPEG.encoder
                     startOfGOPMarker, ...
                     gopBits ...
                     );
+                obj.gopStatistics{GOPIndex}.headerBits = length(bits) - length(gopBits);
+                obj.gopStatistics{GOPIndex}.bits = length(bits);
             end
         end
 
-        function mvBits = createBitStreamForMotionVectorsForFrame(obj, GOPIndex, frameIndex)
-            %obj.motionVectors{GOPIndex, frameIndex}
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            mvBits = logical([1 1 1]);
+        function bits = createBitStreamForMotionVectorsForFrame(obj, GOPIndex, frameIndex)
+            bits = cell2mat(obj.codedMotionVectors{GOPIndex, frameIndex});
         end
     end       
 end 

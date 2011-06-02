@@ -31,6 +31,7 @@ classdef base < handle
        hInputImageSelect
 
        examplesDirectory
+       loadedImage = 0;
 
        inputMatrix
        imageStruct
@@ -54,7 +55,7 @@ classdef base < handle
 
             scrsz = get(0, 'ScreenSize');
             obj.windowSize = scrsz;
-            obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.75 scrsz(3)*0.75], 'Color', [1 1 1]);
+            obj.hMainWindow = figure('Position', [1 scrsz(4)/1 scrsz(3)*0.75 scrsz(3)*0.75], 'Color', [1 1 1], 'KeyPressFcn', @(src,evt)(obj.handleKeyPress(src,evt)), 'CloseRequestFcn', @(src,evt)(obj.handleCloseRequest(src,evt)));
 
             screensInOrder = GUIs.order;
 
@@ -188,11 +189,10 @@ classdef base < handle
                                         'FontName', 'Courier New',...
                                         'Units', 'Normalized', ...
                                         'Position', position,...
-                                        'String', 'a|b|c',...
+                                        'String', obj.getExampleImagesFromExamplesDirectory(),...
                                         'Callback', @(source, event)(obj.changeInput(source)));
             p = getpixelposition(obj.hInputImageSelect);
             setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
-            set(obj.hInputImageSelect, 'String', obj.getExampleImagesFromExamplesDirectory());
         end
 
         function ax = createAxesForImage(obj, position, parent)
@@ -237,7 +237,8 @@ classdef base < handle
             % variable to the resulting YCbCr image.
 
             files = get(source, 'String');
-            fileName = fullfile(obj.examplesDirectory, files{get(source, 'Value')});
+            obj.loadedImage = get(source, 'Value');
+            fileName = fullfile(obj.examplesDirectory, files{obj.loadedImage});
             imageRGB = imread(fileName);
 
             if isempty(imageRGB)
@@ -340,6 +341,49 @@ classdef base < handle
             % is closed.
             GUIs.(screenName)();
             close(obj.hMainWindow);
+        end
+
+        function handleKeyPress(obj, source, event)
+        end
+
+        function handleCloseRequest(obj, source, event)
+            delete(source)
+        end
+
+        function lineWithArrowHead(obj, p1, p2)
+            horzHeadsize = [0.01 0.01];
+            vertHeadsize = [0.006 0.015];
+            line([p1(1) p2(1)],...
+                [p1(2) p2(2)], ...
+                'Color', [0 0 0]); % input to sum
+            diff = p2 - p1;
+            if abs(diff(1)) > abs(diff(2))
+                % horz
+                if diff(1) > 0
+                    % right
+                    patch(  [p2(1)-horzHeadsize(1), p2(1)-horzHeadsize(1), p2(1)], ...
+                        [p2(2)+horzHeadsize(2), p2(2)-horzHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                else
+                    % left
+                    patch(  [p2(1)+horzHeadsize(1), p2(1)+horzHeadsize(1), p2(1)], ...
+                        [p2(2)+horzHeadsize(2), p2(2)-horzHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                end
+            else
+                % vert
+                if diff(2) > 0
+                    % up
+                    patch(  [p2(1)+vertHeadsize(1), p2(1)-vertHeadsize(1), p2(1)], ...
+                        [p2(2)-vertHeadsize(2), p2(2)-vertHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                else
+                    %down
+                    patch(  [p2(1)+vertHeadsize(1), p2(1)-vertHeadsize(1), p2(1)], ...
+                        [p2(2)+vertHeadsize(2), p2(2)+vertHeadsize(2), p2(2)], ...
+                        [0 0 0]);
+                end
+            end
         end
    end
 end

@@ -36,7 +36,7 @@ for k=1:2:size(varargin,2)
         case 'parent'
             ax = varargin{k + 1};
         case 'channel'
-            channel = varargin{k + 1};
+            channel = lower(varargin{k + 1});
         case 'block'
             block = varargin{k + 1};
         case 'interpolation'
@@ -81,30 +81,23 @@ switch channel
         end
     case 'y'
         imhandle = imshow(reconstructionYCbCr(:,:,1), 'Parent', ax);
-    case 'cb'
+    case {'cb', 'cr'}
+        if strcmp(channel, 'cb')
+            index = 2;
+        else
+            index = 3;
+        end
         if upsample
-            chanData = reconstructionYCbCr(:,:,2);
+            chanData = reconstructionYCbCr(:,:,index);
         else
             chanData = reconstructionYCbCr;
         end
         if colourDisplay
-            imToDisplay = uint8(zeros(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3));
-            imToDisplay(:,:,2) = chanData;
-            chanData = ycbcr2rgb(imToDisplay);
-        end
-        if ~upsample
-            chanData = fillInImage(chanData, size(subsampled.y));
-        end
-        imhandle = imshow(chanData, 'Parent', ax);
-    case 'cr'
-        if upsample
-            chanData = reconstructionYCbCr(:,:,3);
-        else
-            chanData = reconstructionYCbCr;
-        end
-        if colourDisplay
-            imToDisplay = uint8(zeros(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3));
-            imToDisplay(:,:,3) = chanData;
+            imToDisplay = uint8(ones(size(reconstructionYCbCr,1), size(reconstructionYCbCr,2), 3)).*128;
+            if size(reconstructionYCbCr,3) > 1
+                imToDisplay(:,:,1) = reconstructionYCbCr(:,:,1);
+            end
+            imToDisplay(:,:,index) = chanData;
             chanData = ycbcr2rgb(imToDisplay);
         end
         if ~upsample

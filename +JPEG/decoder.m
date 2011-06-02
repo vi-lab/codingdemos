@@ -23,12 +23,13 @@ classdef decoder < handle
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
-    properties (SetObservable)
-        inputStruct
-        verbose = false;
-    end
+    properties (SetObservable, SetAccess='protected')
 
-    properties (SetObservable, SetAccess='private')
+        useBuiltInMethods
+
+        verbose
+
+        inputStruct
 
         chromaSamplingMode
         outputImageSize
@@ -42,7 +43,6 @@ classdef decoder < handle
         componentSizeInBlocks
 
         % TODO : REFACTOR NAMING
-
 
         % Quantisation tables cell array
         quantisationTables
@@ -76,9 +76,12 @@ classdef decoder < handle
     end
 
     methods
-        function obj = decoder(source)
+        function obj = decoder(source, varargin)
             if exist('source','var')
                 obj.inputStruct = source;
+            end
+            if ~isempty(varargin)
+                obj.setDecodingParameters(varargin{:});
             end
         end
 
@@ -90,7 +93,8 @@ classdef decoder < handle
                                         ... %'binaryData', Utilities.readBinaryFileToArray(data, 'logical'), ...
                                         'numericData', Utilities.readBinaryFileToArray(data, 'numeric'));
             elseif isa(data, 'logical')
-                obj.inputStruct = struct('binaryData', data);
+                obj.inputStruct = struct('binaryData', data, ...
+                                        'numericData', Utilities.logicalArrayToUnsignedNumericArray(data));
             elseif isa(data, 'struct')   %%%%%%%%%%%%%%%% STRUCT DATA FROM encoder, all data
                 %%%%%%obj.data = data;
             else
@@ -98,20 +102,42 @@ classdef decoder < handle
             end
         end
 
+        function setParameterDefaultValues(obj)
+            obj.setDecodingParameters('Verbose', false, 'BuiltIns', false);
+        end
+
+        function setDecodingParameters(obj, varargin)
+            for k=1:2:size(varargin,2)
+                switch lower(varargin{k})
+                    case 'verbose'
+                        obj.verbose = varargin{k+1};
+                    case 'builtins'
+                        obj.useBuiltInMethods = varargin{k+1};
+                end
+            end
+        end
+
         % TODO: Should take varargs so that you can pass in what to do
-        function outputImage = decode(obj, verbose)
-            outputImage = [];
-            if exist('verbose', 'var')
-                obj.verbose = verbose;
+        function outputImage = decode(obj, source, varargin)
+            if ~isempty(varargin)
+                obj.setDecodingParameters(varargin{:});
+            end
+
+            if exist('source', 'var')
+                obj.inputStruct = source;
+            end
+
+            if obj.useBuiltInMethods
+                methods = struct('DCT', @dct2, 'IDCT', @idct2);
+            else
+                methods = struct('DCT', @ThirdParty.AMyronenko.mirt_dctn, 'IDCT', @ThirdParty.AMyronenko.mirt_idctn);
             end
 
             % First the input data is decoded. This involves finding JPEG
             % segment markers to identify each region (quantisation tables,
             % huffman tables, entropy coded blocks etc) and then decoding
             % them and extracting parameters.
-            if isfield(obj.inputStruct, 'binaryData')
-               obj.decodeFromLogicalArray();
-            elseif isfield(obj.inputStruct, 'numericData')
+            if isfield(obj.inputStruct, 'numericData')
                obj.decodeFromNumericArray();
             else
                 %%%%%%%% STRUCT FROM ENCODER, only do whats needed, (prob
@@ -172,11 +198,11 @@ classdef decoder < handle
                 quantisedChannel{c} = cell2mat(reshape(blocksWithACCoefficientsReordered{c}, obj.componentSizeInBlocks{c}(1), obj.componentSizeInBlocks{c}(2)).');
 
                 % Dequantise
-                dequantisedChannel{c} = blkproc(quantisedChannel{c}, [8 8], ...
+                dequantisedChannel{c} = blkproc(double(quantisedChannel{c}), [8 8], ...
                                                 @(block)(block.*obj.quantisationTables{obj.quantisationTableDestinationSelector(channelID) + 1}));
 
                 % IDCT
-                reconstructedChannelWithLevelShift{c} = blkproc(dequantisedChannel{c}, [8 8], @idct2);
+                reconstructedChannelWithLevelShift{c} = blkproc(dequantisedChannel{c}, [8 8], methods.IDCT);
 
                 % -----------
                 % Level Shift
@@ -292,7 +318,7 @@ classdef decoder < handle
 
         % TODO: MAKE THESE INTO UTILITIES!
         function short = getNumericShort(obj, startByte)
-            short = (obj.inputStruct.numericData(startByte) * 256) + obj.inputStruct.numericData(startByte + 1);
+            short = (uint16(obj.inputStruct.numericData(startByte)) * 256) + uint16(obj.inputStruct.numericData(startByte + 1));
         end
 
         function [high low] = getNumericNibblesFromByte(obj, startByte)
@@ -307,7 +333,7 @@ classdef decoder < handle
             %
 
             % Lf    (2 bytes)
-            segmentLength           = obj.getNumericShort(startByte);
+            segmentLength           = double(obj.getNumericShort(startByte));
             % P     (1 byte)
             dataByteSize            = obj.inputStruct.numericData(startByte + 2);
             % Y     (2 byte)
@@ -377,7 +403,7 @@ classdef decoder < handle
             % luminance channels and one for chroma.
 
             % Lq
-            segmentLength                   = obj.getNumericShort(startByte);
+            segmentLength                   = double(obj.getNumericShort(startByte));
             if obj.verbose
                 disp(['- Quantisation Table Segment (' num2str(segmentLength) ' bytes)']);
             end
@@ -387,7 +413,7 @@ classdef decoder < handle
                 % Pq:Tq
                 [tablePrecision tableID]    = obj.getNumericNibblesFromByte(currentByte);
                 % Entries
-                obj.quantisationTables{tableID + 1} = TransformCoding.coefficientOrdering(obj.inputStruct.numericData(currentByte+1:currentByte+64), 'dezigzag');
+                obj.quantisationTables{tableID + 1} = double(TransformCoding.coefficientOrdering(obj.inputStruct.numericData(currentByte+1:currentByte+64), 'dezigzag'));
                 if obj.verbose
                     disp(['-- Table ' num2str(tableID) ': ']);
 
@@ -406,7 +432,7 @@ classdef decoder < handle
         function endByte = decodeHuffmanTablesFromNumericData(obj, startByte)
 
 
-            segmentLength = obj.getNumericShort(startByte);
+            segmentLength = double(obj.getNumericShort(startByte));
             if obj.verbose
                 disp(['- Huffman Table Segment (' num2str(segmentLength) ' bytes)']);
             end
@@ -417,7 +443,7 @@ classdef decoder < handle
                 [tableType tableID]    = obj.getNumericNibblesFromByte(currentByte);
 
                 % Li
-                Li = obj.inputStruct.numericData(currentByte + 1:currentByte + 16);
+                Li = double(obj.inputStruct.numericData(currentByte + 1:currentByte + 16));
 
                 currentByte = currentByte + 17;
 
@@ -477,7 +503,7 @@ classdef decoder < handle
             % NOTE: this only supports non-interleaved data at the moment
 
             % Ls    (2 bytes)
-            segmentLength = obj.getNumericShort(startByte);
+            segmentLength = double(obj.getNumericShort(startByte));
 
             if obj.verbose
                 disp(['- Scan Segment (header ' num2str(segmentLength) ' bytes):']);
@@ -524,12 +550,12 @@ classdef decoder < handle
             % Ref: CCITT Rec. T.81 (1992 E)	p.107
             % DC
             BITS = obj.huffmanDCCodeCountPerCodeLength{huffmanDCTableID + 1};
-            HUFFVALDC = cell2mat(obj.huffmanDCSymbolValuesPerCode{huffmanDCTableID + 1});
+            HUFFVALDC = double(cell2mat(obj.huffmanDCSymbolValuesPerCode{huffmanDCTableID + 1}));
             HUFFCODE = obj.huffcodeForDCCellArray{huffmanDCTableID + 1};
             [minCodeForDC maxCodeForDC valueTablePointerForDC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
 
             BITS = obj.huffmanACCodeCountPerCodeLength{huffmanACTableID + 1};
-            HUFFVALAC = cell2mat(obj.huffmanACSymbolValuesPerCode{huffmanACTableID + 1});
+            HUFFVALAC = double(cell2mat(obj.huffmanACSymbolValuesPerCode{huffmanACTableID + 1}));
             HUFFCODE = obj.huffcodeForACCellArray{huffmanACTableID + 1};
             [minCodeForAC maxCodeForAC valueTablePointerForAC] = EntropyCoding.generateDecodingProcedureTable(BITS, HUFFCODE);
 
@@ -544,11 +570,12 @@ classdef decoder < handle
             currentBit = 0;
 
             % compute total pixels for channel with its Hi,Vi and image w,h
-            totalBlocks = obj.componentSizeInBlocks{channelID};
+            totalBlocks = double(obj.componentSizeInBlocks{channelID});
 
             for i=1:totalBlocks(1)*totalBlocks(2)
                 % For given block
                 % DC Category Huffman decode
+
                 [categoryOfDCDiff currentByte currentBit] = EntropyCoding.decodeValue( obj.inputStruct.numericData, currentByte, currentBit, minCodeForDC, maxCodeForDC, valueTablePointerForDC, HUFFVALDC );
 
                 lengthOfExtraBits = categoryOfDCDiff;
@@ -586,9 +613,5 @@ classdef decoder < handle
             endByte = currentByte;
 
         end
-
-        function decodeFromLogicalArray(obj)
-        end
-
    end
 end
