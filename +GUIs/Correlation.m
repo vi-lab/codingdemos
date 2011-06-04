@@ -94,7 +94,7 @@ classdef Correlation < GUIs.base
             data = obj.inputMatrix(:,:,1);
             data = data(obj.chosenRow,:,1);
             data = data - mean(data(:));
-            coefs = xcorr(data, length(data));
+            coefs = xcorr(data, floor(length(data)/4), 'unbiased');
             %coefs = autocorr(data(obj.chosenRow,:,1), size(data,2)-1);
             plot(obj.hSpatialCorrelationAxes, coefs(ceil(length(coefs)/2):end));
             set(obj.hSpatialInfo, 'String', ['Chosen Row: ' num2str(obj.chosenRow)]);
