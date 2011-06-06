@@ -51,10 +51,10 @@ Third party components are copyright their respective owners:
 
 * [N-D discrete cosine transform](https://sites.google.com/site/myronenko/) - Andriy Myronenko, 2010
 
-The Bristol Vision Institute
-----------------------------
+Bristol University Visual Information Laboratory
+------------------------------------------------
 
-[The Bristol Vision Institute](http://www.bristol.ac.uk/vision-institute/)
-at the University of Bristol is a world leader in vision science. Bristol
-has a long and rich tradition at the forefront of the study of human and
-animal vision, artificial vision systems and imaging more generally.
+[The Visual Information Laboratory](http://www.bristol.ac.uk/vi-lab/)
+ exists to undertake innovative, collaborative and interdisciplinary research
+resulting in world leading technology in the areas of computer vision, image
+and video communications, content analysis and distributed sensor systems.
