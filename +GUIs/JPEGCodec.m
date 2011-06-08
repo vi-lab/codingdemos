@@ -46,7 +46,7 @@ classdef JPEGCodec < GUIs.base
             % ENC
 
             rectangle('Position', [0.01 0.90 0.20 0.08], 'Parent', mainCanvas, 'LineStyle', ':');
-            obj.createTextElement([0.02 0.945 0.18 0.03], 'JPEG Quality', 10, 'on', 'white', obj.hExternalPanel);
+            obj.createTextElement([0.02 0.945 0.18 0.03], 'JPEG Quality:', 10, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
             obj.createTextElement([0.02 0.92 0.04 0.03], '0', 10, 'on', 'white', obj.hExternalPanel);
             obj.createTextElement([0.09 0.92 0.04 0.03], '50', 10, 'on', 'white', obj.hExternalPanel);
             obj.createTextElement([0.16 0.92 0.04 0.03], '100', 10, 'on', 'white', obj.hExternalPanel);
@@ -61,8 +61,8 @@ classdef JPEGCodec < GUIs.base
 
             obj.lineWithArrowHead([0.21 0.86], [0.25 0.86]); % in to t
 
-            rectangle('Position', [0.25 0.85 0.1 0.1], 'Parent', mainCanvas); % t
-            element = obj.createTextElement([0.26 0.86 0.08 0.08], 'Transform (DCT) & Quantisation', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.25 0.85 0.1 0.1], 'Parent', mainCanvas, 'Curvature', 0.1); % t
+            element = obj.createTextElement([0.26 0.86 0.08 0.063], 'Transform & Quantisation', 11, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
             %set(element, 'Enable', 'on');
             %set(element, 'ButtonDownFcn', @(source,event)(obj.changeScreen('TransformCoding')));
             %{
@@ -76,13 +76,13 @@ classdef JPEGCodec < GUIs.base
                     'Callback', @(source,event)(obj.changeScreen('TransformCoding')));
             %}
             rectangle('Position', [0.23 0.75 0.28 0.22], 'Parent', mainCanvas, 'LineStyle', ':');  % encoder body
-            obj.createTextElement([0.35 0.75 0.1 0.03], 'ENCODER', 12, 'on', 'white', obj.hExternalPanel);
+            obj.createTextElement([0.24 0.755 0.26 0.03], 'ENCODER', 12, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'arial');
 
-            obj.lineWithArrowHead([0.35 0.88], [0.4 0.88]); % t to e
+            obj.lineWithArrowHead([0.35 0.9], [0.4 0.9]); % t to e
 
-            rectangle('Position', [0.4 0.85 0.1 0.1], 'Parent', mainCanvas); % e
-            obj.hQValueText = obj.createTextElement([0.3 0.8 0.10 0.03], 'Q:', 10, 'on', 'white', obj.hExternalPanel);
-            obj.createTextElement([0.41 0.86 0.08 0.08], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.4 0.85 0.1 0.1], 'Parent', mainCanvas, 'Curvature', 0.1); % e
+            obj.hQValueText = obj.createTextElement([0.26 0.8 0.10 0.03], 'Q:', 10, 'on', 'white', obj.hExternalPanel);
+            obj.createTextElement([0.41 0.86 0.08 0.063], 'Entropy Coding', 11, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
             % show text with val of Quant
 
@@ -101,21 +101,21 @@ classdef JPEGCodec < GUIs.base
             % DEC
 
             line([0.55 0.6], [0.75 0.9], 'Color', [0 0 0], 'LineStyle', '-.');
-            obj.createTextElement([0.52 0.8 0.1 0.03], '(Channel)', 10, 'on', 'white', obj.hExternalPanel);
+            obj.createTextElement([0.52 0.8 0.1 0.03], '(Channel)', 10, 'on', 'white', obj.hExternalPanel, 'FontAngle', 'italic');
             obj.lineWithArrowHead([0.55 0.75], [0.65 0.75]); % id to it
 
-            rectangle('Position', [0.62 0.66 0.3 0.16], 'Parent', mainCanvas, 'LineStyle', ':');  % encoder body
-            obj.createTextElement([0.73 0.665 0.1 0.03], 'DECODER', 12, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.62 0.66 0.32 0.16], 'Parent', mainCanvas, 'LineStyle', ':');  % encoder body
+            obj.createTextElement([0.63 0.665 0.3 0.03], 'DECODER', 12, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'arial');
 
-            rectangle('Position', [0.65 0.7 0.1 0.1], 'Parent', mainCanvas); % id
-            obj.createTextElement([0.66 0.71 0.08 0.08], 'Entropy Decoding', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.65 0.7 0.1 0.1], 'Parent', mainCanvas, 'Curvature', 0.1); % id
+            obj.createTextElement([0.66 0.71 0.08 0.063], 'Entropy Decoding', 11, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.75 0.75], [0.8 0.75]); % it to out
+            obj.lineWithArrowHead([0.75 0.75], [0.8 0.75]);
 
-            rectangle('Position', [0.8 0.7 0.1 0.1], 'Parent', mainCanvas); % it
-            obj.createTextElement([0.81 0.71 0.08 0.08], 'Inverse Transform & Quantisation', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.8 0.7 0.12 0.1], 'Parent', mainCanvas, 'Curvature', 0.1); % it
+            obj.createTextElement([0.81 0.71 0.1 0.073], 'Inverse Transform & Quantisation', 11, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.9 0.75], [0.95 0.75]); % it to out
+            line([0.92 0.95], [0.75 0.75], 'Color', [0 0 0]);
             obj.lineWithArrowHead([0.95 0.75], [0.95 0.61]);
 
             obj.createTextElement([0.01 0.61 0.2 0.03], 'Uncompressed Input Image', 10, 'on', 'white', obj.hExternalPanel);

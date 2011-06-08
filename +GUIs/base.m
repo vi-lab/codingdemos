@@ -113,11 +113,11 @@ classdef base < handle
                                         'Units', 'Normalized', ...
                                         'Position', [0.0 .01 1.0 .95]);
 
-            obj.createTextElement([0.0 .96 1.0 0.035], [' ' panelTitle], 15, true, [.8 .8 .8], obj.hMainWindow);
+            obj.createTextElement([0.0 .96 1.0 0.035], [' ' panelTitle], 15, true, [.8 .8 .8], obj.hMainWindow, 'FontName', 'arial');
 
         end
 
-        function handle = createTextElement(obj, position, text, fontSize, visible, backgroundColor, parent)
+        function handle = createTextElement(obj, position, text, fontSize, visible, backgroundColor, parent, varargin)
             % ---------------------
             % Create a text element
             % ---------------------
@@ -159,7 +159,7 @@ classdef base < handle
                                 'Position', position, ...
                                 'BackgroundColor', backgroundColor,...
                                 'Fontsize', fontSize, ...
-                                'FontName', 'Courier New');
+                                'FontName', 'Courier New', varargin{:});
         end
 
         function createInputImageSelectComboBoxAndText(obj, textPosition, position, examplesDirectory)
@@ -181,7 +181,7 @@ classdef base < handle
                 obj.examplesDirectory = examplesDirectory;
             end
 
-            obj.hInputImageSelectText = obj.createTextElement(textPosition, 'Input Image:');
+            obj.hInputImageSelectText = obj.createTextElement(textPosition, 'Input Image:', 11, true, 'white', obj.hExternalPanel, 'FontName', 'helvetica');
 
             obj.hInputImageSelect = uicontrol('Style', 'popupmenu', ...
                                         'Parent', obj.hExternalPanel, ...

@@ -169,7 +169,7 @@ classdef Subsampling < GUIs.base
 
             linkaxes(cell2mat(obj.hSubsampledImageAxes), 'xy');
 
-            %obj.changeInput(obj.hInputImageSelect);
+            obj.changeInput(obj.hInputImageSelect);
 
             if exist('fileName', 'var')
                 % Load from file

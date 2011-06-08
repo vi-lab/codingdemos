@@ -73,11 +73,11 @@ classdef TransformCoding < GUIs.base
             obj.bases = arrayfun(@(x,y)(TransformCoding.createBasisImage(x,y)), X(:), Y(:), 'UniformOutput', false);
 
             % Create panel for basis
-            obj.createTextElement([0.36 0.93 0.24 0.06], 'Click to enable or disable a particular DCT basis function:');
+            obj.createTextElement([0.4 0.96 0.24 0.03], 'Click to select DCT bases:');
             obj.hBasesPanel = uipanel('Parent', obj.hExternalPanel, ...
                                     'BackgroundColor', 'white', ...
                                     'Units', 'Normalized', ...
-                                    'Position', [0.4 0.59 0.34 0.34], ...
+                                    'Position', [0.4 0.62 0.34 0.34], ...
                                     'ResizeFcn', @(src, evt)(obj.resizeBasesPanel()));
 
             % Create toggle buttons
@@ -134,6 +134,8 @@ classdef TransformCoding < GUIs.base
             end
 
             linkaxes([obj.hInputImageAxes obj.hOutputImageAxes]);
+
+            obj.changeInput(obj.hInputImageSelect);
 
             obj.updateAxes();
         end
