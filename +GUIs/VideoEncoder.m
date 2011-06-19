@@ -95,7 +95,7 @@ classdef VideoEncoder < GUIs.base
             obj.lineWithArrowHead([0.3 0.745], [0.33 0.745]); % in to sum
 
             rectangle('Position', [0.33 0.72 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node
-            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.66 0.07 0.03], 'subtract', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.66 0.07 0.03], '-', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.36 0.745], [0.4 0.745]); % sum to t/q
 
@@ -117,7 +117,7 @@ classdef VideoEncoder < GUIs.base
             obj.lineWithArrowHead([0.5 0.5], [0.5 0.45]); % inv t/q to reconstruction adder node
 
             rectangle('Position', [0.485 0.40 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node after inv t/q
-            obj.hDiagramElements{5} = obj.createTextElement([0.43 0.435 0.04 0.03], 'add', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{5} = obj.createTextElement([0.43 0.435 0.04 0.03], '+', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.5 0.4], [0.5 0.35]); % recon to buffer
 
@@ -319,28 +319,29 @@ classdef VideoEncoder < GUIs.base
                 if i == 1
                     stats = obj.videoEncoder.getStatistics();
                     if isempty(obj.outputStatsToPlot)
-                        obj.outputStatsToPlot = zeros(1, size(obj.videoEncoder.imageMatrix, 4));
+                        obj.outputStatsToPlot = zeros(size(obj.videoEncoder.imageMatrix, 4),2);
                     end
                     switch obj.outputPlotType
                         case 1 % combined
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.frameBits;
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,2) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,:) ,'stack');
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 2 % frameBits
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.frameBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.frameBits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1), 'grouped');
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 3 % motionVectorBits
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1), 'grouped');
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 4 % total bits
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.bits;
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1), 'grouped');
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                         case 5 % psnr
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.psnr;
-                            plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.psnr;
+                            plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1));
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                     end
                 end
