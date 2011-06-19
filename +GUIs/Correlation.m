@@ -9,8 +9,12 @@ classdef Correlation < GUIs.base
         hSpatialInfo
 
         hImage
+        hSamplesSlider
+        hSamplesSliderText
         chosenRow
         hChosenLine
+
+        numberOfSamples = 10;
 
         hTemporalCorrelationAxes
         hVideoAxes
@@ -53,7 +57,7 @@ classdef Correlation < GUIs.base
                             'BackgroundColor', 'white', ...
                             'Units', 'Normalized', ...
                             'Position', [0.0 .01 1.0 .47]);
-            obj.createTextElement([0.0 .93 1.0 0.07], ' Temporal Correlation', 15, true, [.8 .8 .8], obj.hMotionCorrelationPanel);
+            obj.createTextElement([0.0 .93 1.0 0.07], ' Temporal Correlation', 15, true, [.8 .8 .8], obj.hMotionCorrelationPanel,'FontName', 'arial');
             obj.hTemporalCorrelationAxes = axes('Parent', obj.hMotionCorrelationPanel, 'Position', [0.4 0.15 0.54 0.65]);
             set(get(obj.hTemporalCorrelationAxes,'XLabel'),'String','Offset in Time (Frames)');
             set(get(obj.hTemporalCorrelationAxes,'YLabel'),'String','Correlation');
@@ -82,8 +86,20 @@ classdef Correlation < GUIs.base
                                         'Units', 'Normalized', ...
                                         'Position', [0.21 0.82 0.1 0.05],...
                                         'Callback', @(src,evt)(obj.randomVideo(src)));
-        
+
+            obj.hSamplesSliderText = obj.createTextElement([0.6 0.96 0.14 0.03], 'No. Samples:', 10, 'off');
+            obj.hSamplesSlider = uicontrol('Style', 'slider', ...
+                                                'Visible', 'off', ...
+                                                'Parent', obj.hExternalPanel, ...
+                                                'Min', 1, 'Max', 100, ...
+                                                'Units', 'Normalized', ...
+                                                'Position', [0.74 0.96 0.25 0.03], ...
+                                                'Value', obj.numberOfSamples,...
+                                                'Callback', @(source, event)(obj.sampleNumberChange(source)));
+                                    
             obj.changeInput(obj.hInputImageSelect);
+
+            obj.setSliderLength();
         end
 
         function videoLoad(obj, source)
@@ -93,6 +109,7 @@ classdef Correlation < GUIs.base
         end
 
         function randomVideo(obj, source)
+            obj.chosenVideoPoint = [1 1];
             obj.videoEncoder = [];
             set(source, 'Enable', 'on');
             set(obj.hVideoLoadButton, 'Enable', 'on');
@@ -103,6 +120,7 @@ classdef Correlation < GUIs.base
         function changeInput(obj, source)
             % Call super class implementation which does the loading etc
             obj.changeInput@GUIs.base(source);
+            obj.setSliderLength();
             obj.updateAxes();
             obj.updateCorrelationPlots();
         end
@@ -122,8 +140,7 @@ classdef Correlation < GUIs.base
             data = obj.inputMatrix(:,:,1);
             data = data(obj.chosenRow,:,1);
             data = data - mean(data(:));
-            coefs = xcorr(data, floor(length(data)/4), 'unbiased');
-            %coefs = autocorr(data(obj.chosenRow,:,1), size(data,2)-1);
+            coefs = xcorr(data, min(obj.numberOfSamples,length(data)), 'unbiased');  % floor(length(data)/4)
             plot(obj.hSpatialCorrelationAxes, coefs(ceil(length(coefs)/2):end));
             set(obj.hSpatialInfo, 'String', ['Chosen Row: ' num2str(obj.chosenRow)]);
             set(get(obj.hSpatialCorrelationAxes,'XLabel'),'String','Offset in Pixels');
@@ -140,6 +157,17 @@ classdef Correlation < GUIs.base
             end
             obj.hImage = imshow(obj.inputMatrix(:,:,1), 'Parent', obj.hImageAxes);
             set(obj.hImage, 'ButtonDownFcn', @(source, evt)(obj.imageClick(source)));
+        end
+
+        function sampleNumberChange(obj, source)
+            obj.numberOfSamples = ceil(get(source, 'Value'));
+            obj.updateAxes();
+            obj.updateCorrelationPlots();
+        end
+        
+        function setSliderLength(obj)
+            set(obj.hSamplesSlider, 'Value', min(10,size(obj.inputMatrix(:,:,1),2)));
+            set(obj.hSamplesSlider, 'Max', size(obj.inputMatrix(:,:,1),2));
         end
 
         function imageClick(obj, source)
@@ -162,10 +190,13 @@ classdef Correlation < GUIs.base
         function videoPlay(obj, source)
             set(source, 'Enable', 'off');
             set(obj.hVideoStepButton, 'Enable', 'off');
+            set(obj.hVideoRandomButton, 'Enable', 'off');
+            
             data = zeros(1,size(obj.videoEncoder.imageMatrix,4));
             for i=1:size(obj.videoEncoder.imageMatrix,4)
                 obj.hVideo = imshow(obj.videoEncoder.imageMatrix(:,:,1,i), 'Parent', obj.hVideoAxes);
                 set(obj.hVideo, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source)));
+                obj.chosenVideoPoint
                 data(1,i) = obj.videoEncoder.imageMatrix(obj.chosenVideoPoint(2),obj.chosenVideoPoint(1),1,i);
                 data = data - mean(data(:));
                 coefs = xcorr(data, i, 'unbiased');
@@ -176,6 +207,7 @@ classdef Correlation < GUIs.base
                 set(obj.hVideoInfo, 'String', ['Chosen Pixel: (' num2str(obj.chosenVideoPoint(1)) ',' num2str(obj.chosenVideoPoint(2)) ')']);
                 pause(0.05);
             end 
+            set(obj.hVideoRandomButton, 'Enable', 'on');
             set(source, 'Enable', 'on');
             set(obj.hVideoStepButton, 'Enable', 'on');
         end
@@ -216,6 +248,22 @@ classdef Correlation < GUIs.base
                 end
                 obj.updateCorrelationPlots();
             end
+        end
+
+        function changeScreenMode(obj, source)
+
+            obj.changeScreenMode@GUIs.base(source);
+
+            if strcmp(get(source, 'State'), 'on')
+                % on
+                set(obj.hSamplesSliderText, 'Visible', 'on');
+                set(obj.hSamplesSlider, 'Visible', 'on');
+            else
+                % off
+                set(obj.hSamplesSliderText, 'Visible', 'off');
+                set(obj.hSamplesSlider, 'Visible', 'off');
+            end
+            
         end
     end
 end 

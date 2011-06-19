@@ -118,19 +118,19 @@ classdef JPEGCodec < GUIs.base
             line([0.92 0.95], [0.75 0.75], 'Color', [0 0 0]);
             obj.lineWithArrowHead([0.95 0.75], [0.95 0.61]);
 
-            obj.createTextElement([0.01 0.61 0.2 0.03], 'Uncompressed Input Image', 10, 'on', 'white', obj.hExternalPanel);
-            obj.createTextElement([0.60 0.61 0.2 0.03], 'Decoded Output Image', 10, 'on', 'white', obj.hExternalPanel);
+            obj.createTextElement([0.01 0.61 0.2 0.03], 'Uncompressed Input Image', 10, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.createTextElement([0.60 0.61 0.2 0.03], 'Decoded Output Image', 10, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
 
-            obj.hInputBitCountText  = obj.createTextElement([0.43 0.55 0.15 0.06], 'Input Bit Count: ', 12, 'on', 'white', obj.hExternalPanel);
-            obj.hOutputBitCountText = obj.createTextElement([0.43 0.45 0.15 0.06], 'Output Bit Count: ', 12, 'on', 'white', obj.hExternalPanel);
-            obj.hSavingText         = obj.createTextElement([0.43 0.35 0.15 0.06], 'Bit Saving: ', 12, 'on', 'white', obj.hExternalPanel);
-            obj.hPSNRText           = obj.createTextElement([0.43 0.25 0.15 0.06], 'PSNR of output: ', 12, 'on', 'white', obj.hExternalPanel);
+            obj.hInputBitCountText  = obj.createTextElement([0.43 0.55 0.15 0.06], 'Input Bit Count: ', 15, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.hOutputBitCountText = obj.createTextElement([0.43 0.45 0.15 0.06], 'Output Bit Count: ', 15, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.hSavingText         = obj.createTextElement([0.43 0.35 0.15 0.06], 'Bit Saving: ', 15, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.hPSNRText           = obj.createTextElement([0.43 0.25 0.15 0.06], 'PSNR of output: ', 15, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
 
             xlim(mainCanvas, [0 1]);
             ylim(mainCanvas, [0 1]);
 
             % UI Elements
-            obj.createInputImageSelectComboBoxAndText([0.02 0.85 0.19 0.03], [0.01 0.80 0.19 0.06]);
+            obj.createInputImageSelectComboBoxAndText([0.02 0.85 0.15 0.03], [0.01 0.80 0.19 0.06]);
 
             obj.hInputImageAxes = obj.createAxesForImage([.01 .01 .4 .6]);
 
@@ -147,6 +147,8 @@ classdef JPEGCodec < GUIs.base
                                                 'Callback', @(source, event)(obj.quantisationFactorChange(source)));
             set(obj.hInputImageSelect, 'Value', 1);
             obj.changeInput(obj.hInputImageSelect);
+
+            set(obj.hButtonAdvancedMode, 'Enable', 'off');
         end
 
         function quantisationFactorChange(obj, source)
