@@ -95,40 +95,40 @@ classdef VideoEncoder < GUIs.base
             obj.lineWithArrowHead([0.3 0.745], [0.33 0.745]); % in to sum
 
             rectangle('Position', [0.33 0.72 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node
-            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.66 0.07 0.03], '-', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.68 0.03 0.02], '-', 10, 'on', 'white', obj.hExternalPanel);
 
-            obj.lineWithArrowHead([0.36 0.745], [0.4 0.745]); % sum to t/q
+            obj.lineWithArrowHead([0.36 0.745], [0.39 0.745]); % sum to t/q
 
-            box = rectangle('Position', [0.40 0.70 0.08 0.10], 'Parent', mainCanvas); % t/q
-            obj.hDiagramElements{2} = obj.createTextElement([0.405 0.705 0.07 0.09],'Transform/Quantisation', 10, 'on', 'white', obj.hExternalPanel);
+            box = rectangle('Position', [0.39 0.70 0.1 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % t/q
+            obj.hDiagramElements{2} = obj.createTextElement([0.395 0.705 0.09 0.06],'Transform & Quantisation', 10, 'on', 'white', obj.hExternalPanel,'HorizontalAlignment', 'center',  'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.48 0.745], [0.55 0.745]); %t/q to entropy
+            obj.lineWithArrowHead([0.49 0.745], [0.55 0.745]); %t/q to entropy
 
-            rectangle('Position', [0.55 0.70 0.08 0.10], 'Parent', mainCanvas); % entropy
-            obj.hDiagramElements{3} = obj.createTextElement([0.555 0.705 0.07 0.09], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.55 0.70 0.08 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % entropy
+            obj.hDiagramElements{3} = obj.createTextElement([0.555 0.705 0.07 0.06], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel,'HorizontalAlignment', 'center',  'FontName', 'helvetica');
 
             obj.lineWithArrowHead([0.63 0.745], [0.69 0.745]); % entropy to out
 
             obj.lineWithArrowHead([0.5 0.745], [0.5 0.6]); % t/q to inv t/q
 
-            rectangle('Position', [0.45 0.50 0.10 0.10], 'Parent', mainCanvas); % inv t/q
-            obj.hDiagramElements{4} = obj.createTextElement([0.455 0.505 0.09 0.09], 'Inverse Quantisation/Transform', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.45 0.50 0.10 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % inv t/q
+            obj.hDiagramElements{4} = obj.createTextElement([0.455 0.505 0.09 0.07], 'Inverse Quantisation & Transform', 10, 'on', 'white', obj.hExternalPanel,'HorizontalAlignment', 'center',  'FontName', 'helvetica');
 
             obj.lineWithArrowHead([0.5 0.5], [0.5 0.45]); % inv t/q to reconstruction adder node
 
             rectangle('Position', [0.485 0.40 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node after inv t/q
-            obj.hDiagramElements{5} = obj.createTextElement([0.43 0.435 0.04 0.03], '+', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{5} = obj.createTextElement([0.47 0.435 0.015 0.02], '+', 10, 'on', 'white', obj.hExternalPanel);
 
             obj.lineWithArrowHead([0.5 0.4], [0.5 0.35]); % recon to buffer
 
-            rectangle('Position', [0.47 0.25 0.10 0.10], 'Parent', mainCanvas); % buffer
-            obj.hDiagramElements{6} = obj.createTextElement([0.475 0.255 0.09 0.09], 'Frame Buffer', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.47 0.25 0.10 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % buffer
+            obj.hDiagramElements{6} = obj.createTextElement([0.475 0.255 0.09 0.06], 'Frame Buffer', 10, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
             obj.lineWithArrowHead([0.47 0.3], [0.4 0.3]); % buffer to mec (ref)
             obj.lineWithArrowHead([0.31 0.745], [0.31 0.35]); % input to mec (ref)
 
-            rectangle('Position', [0.30 0.25 0.10 0.10], 'Parent', mainCanvas); % mec
-            obj.hDiagramElements{7} = obj.createTextElement([0.305 0.255 0.09 0.09], 'Motion Estimation/Compensation', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.30 0.25 0.10 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % mec
+            obj.hDiagramElements{7} = obj.createTextElement([0.305 0.255 0.09 0.07], 'Motion Estimation & Compensation', 10, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
             line([0.35 0.35], [0.25 0.2], 'Color', [0 0 0]);
             line([0.35 0.6], [0.2 0.2], 'Color', [0 0 0]);
@@ -162,7 +162,7 @@ classdef VideoEncoder < GUIs.base
             obj.videoBitRateAxes = axes('Position', [0.69 0.65 0.3 0.3], 'Parent', obj.hExternalPanel);
 
             obj.toggleShowResiduals(obj.hShowResidualsCheckBox);
-            obj.togglePlayVideo(obj.hPlayPauseButton);
+            %obj.togglePlayVideo(obj.hPlayPauseButton);
         end
  
         function ax = setVideoPlayer(obj, type, matrix, pos, zoomPosDelta)
