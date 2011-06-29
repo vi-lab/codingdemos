@@ -38,16 +38,7 @@ classdef VideoEncoder < GUIs.base
             end
 
             % UI Elements
-            obj.hInputImageSelectText = obj.createTextElement([0.01 0.93 0.1 0.03], 'Input Sequence:', 11, true, 'white', obj.hExternalPanel, 'FontName', 'helvetica');
-            obj.hInputImageSelect = uicontrol('Style', 'popupmenu', ...
-                                        'Parent', obj.hExternalPanel, ...
-                                        'FontSize', 11, ...
-                                        'FontName', 'Helvetica',...
-                                        'Units', 'Normalized', ...
-                                        'Position',[0.1 0.93 0.2 0.03],...
-                                        'String', {'Suzie (I, 4 P) Quality 80' 'Foreman  (I, 4 P) Quality 50' 'Carphone  (I, 9 P) Quality 80'},...
-                                        'Value', 1, ...
-                                        'Callback', @(source, event)(obj.changeInput(source)));
+            obj.createInputVideoSelectComboBoxAndText([0.01 0.93 0.1 0.03], [0.1 0.93 0.2 0.03]);
             obj.hRepeatCheckBox = uicontrol('Style', 'checkbox', ...
                                     'Parent', obj.hExternalPanel, ...
                                     'FontSize', 9, ...
@@ -173,8 +164,7 @@ classdef VideoEncoder < GUIs.base
             obj.createVideoPlayer('motionvectors', ...
                                 [0.01 0.15 0.28 0.28], [0 -0.10 0.2 0.2]);
 
-            obj.changeInput(obj.hInputImageSelect);
-
+            obj.changeVideoInput(obj.hInputImageSelect);
 
             obj.statGraphPosition = [0.70 0.55 0.28 0.3];
             obj.videoBitRateAxes = axes('Position', [0.70 0.55 0.28 0.3], 'Parent', obj.hExternalPanel);
@@ -286,7 +276,7 @@ classdef VideoEncoder < GUIs.base
             obj.outputStatsToPlot = [];
         end
 
-        function changeInput(obj, source)
+        function changeVideoInput(obj, source)
             obj.stopVideo();
             switch(get(source, 'Value'))
                 case 1
@@ -310,7 +300,7 @@ classdef VideoEncoder < GUIs.base
         function playVideos(obj)
             % update frame by frame, on a timer callback?
             if isempty(obj.playTimer)
-                obj.playTimer = timer('Period', 1.0/obj.videoEncoder.frameRate,'ExecutionMode', 'fixedspacing', 'TimerFcn', @(x,y)obj.showNextFrame());
+                obj.playTimer = timer('Period', 1.0/obj.videoEncoder.frameRate, 'BusyMode', 'drop', 'ExecutionMode', 'fixedspacing', 'TimerFcn', @(x,y)obj.showNextFrame());
                 start(obj.playTimer);
             else
 
@@ -377,6 +367,9 @@ classdef VideoEncoder < GUIs.base
                 end
 
                 % update stats graph
+                % THROWS EXCEPTION IN XLIM LISTENER OF BASELINE FOR
+                % BARSERIES when resizing sometimes. This is a matlab bug i
+                % think.
                 if i == 1
                     stats = obj.videoEncoder.getStatistics();
                     if isempty(obj.outputStatsToPlot)
@@ -386,27 +379,27 @@ classdef VideoEncoder < GUIs.base
                         case 1 % combined
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.frameBits;
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame,2) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,:) ,'stack');
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'stack', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 2 % frameBits
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.frameBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1), 'grouped');
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'grouped', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 3 % motionVectorBits
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1), 'grouped');
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'grouped', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 4 % total bits
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.bits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1), 'grouped');
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'grouped', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 5 % psnr
                             obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.psnr;
                             plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1));
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                     end
-                    
                     set(obj.videoBitRateAxes, 'ButtonDownFcn', @(source, evt)(obj.graphClick(source)));
+                    set(obj.videoBitRateAxes, 'Interruptible', 'off');
                 end
             end
         end

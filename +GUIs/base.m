@@ -195,6 +195,30 @@ classdef base < handle
             setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
         end
 
+        function createInputVideoSelectComboBoxAndText(obj, textPosition, position)
+            % --------------------------------------
+            % Create a combobox with examples videos
+            % --------------------------------------
+            %
+            % Create a drop down (popupmenu) style uicontrol populated
+            % with the video file names.
+            % Parameters:
+            %   * textPosition: the position of the partner text element in
+            %   normalised units.
+            %   * position: the position of the dropdown in normalised
+            %   units
+            obj.hInputImageSelectText = obj.createTextElement(textPosition, 'Input Sequence:', 11, true, 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.hInputImageSelect = uicontrol('Style', 'popupmenu', ...
+                                        'Parent', obj.hExternalPanel, ...
+                                        'FontSize', 11, ...
+                                        'FontName', 'Helvetica',...
+                                        'Units', 'Normalized', ...
+                                        'Position',position,...
+                                        'String', {'Suzie (I, 4 P) Quality 80' 'Foreman  (I, 4 P) Quality 50' 'Carphone  (I, 9 P) Quality 80'},...
+                                        'Value', 1, ...
+                                        'Callback', @(source, event)(obj.changeVideoInput(source)));
+        end
+
         function ax = createAxesForImage(obj, position, parent)
             % ---------------------------------
             % Create a set of axes for an image
@@ -251,6 +275,14 @@ classdef base < handle
             end
 
             obj.inputMatrix = rgb2ycbcr(imageRGB);
+        end
+
+        function changeVideoInput(obj, source)
+            % ---------------------------------------------
+            % Default callback for the input video combobox
+            % ---------------------------------------------
+            %
+            % The default callback for video examples.
         end
 
         function changeZoomMode(obj, source)
