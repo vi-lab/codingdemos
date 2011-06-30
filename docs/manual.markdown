@@ -178,7 +178,16 @@ progress of this in the MATLAB console.
 
 ### Screen 6: Block Matching for Motion Compensation
 
-desc
+This demo displays the progress of given block match search techniques used in
+motion estimation and compensation. The input is selected using the top left
+selection box, and then the demo configured using the subsequent ones along the
+top, including selecting the frame to process in the sequence, the reference
+frame, the maximum search distance the search process (eg Diamond Search) and 
+the macroblock size. 
+
+The actual block to process can be selected by clicking on the input image.
+Once a block has been selected the demo can be made to `Freerun` or `Step`
+through the search process which will animate in the figures on the left.
 
 
 Adding Example Images

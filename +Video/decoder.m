@@ -1,6 +1,6 @@
 classdef decoder < JPEG.decoder
-%VIDEO.DECODER Summary of this class goes here
-%   Detailed explanation goes here
+%VIDEO.DECODER UNIMPLEMENTED
+%   UNIMPLEMENTED
 %
 % Copyright 2011, Stephen Ierodiaconou, University of Bristol.
 

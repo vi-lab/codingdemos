@@ -1,8 +1,91 @@
 classdef encoder < JPEG.encoder
-%VIDEO.ENCODER Summary of this class goes here
-%   Detailed explanation goes here
+%VIDEO.ENCODER Implementation of a generic motion compensated video encoder using JPEG image compression to code I frame and residuals
 %
-% Copyright 2011, Stephen Ierodiaconou, University of Bristol.
+%   +Video/encoder.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   This encoder inherits the properties and methods of JPEG.encoder.
+%
+%   Motion vectors are coded using the JPEG Huffman coding technique used
+%   to code DC values but with custom Huffman tables.
+%   I frames are simple coded as JPEG images.
+%   P frames residual frame are coded as JPEG images with custom Huffman
+%   tables.
+%
+%   Inputs can be either a filename for a .AVI file, or an image sequence
+%   where the sequence is defined in the following way: an image path
+%   prefix and range of frames of sequential group (e.g.
+%   /path/to/images/i:01:99:.jpg for images named images 'i01.jpg' to
+%   'i99.jpg'), or a path to an AVI file and the frame range to load
+%   (e.g. /path/to/test.avi:10:20)
+%
+%   Video.encoder main properties:
+%    * structureOfGOPString (r): a string indicated the structure of the
+%    GOP, e.g. 'ipppp'
+%    * frameRate (r): the video framerate
+%    * blockMatching (r): a structure of parameters for the block matching
+%    technique. See '+MotionEstimation/BlockMatching.m' for more on this. 
+%    * referenceFrameBuffer (r): the current reference frame (YCbCr)
+%    * frameData (r): A cell array containing the encoding frame data,
+%    organised as {GOP index, frame index in GOP}
+%    * motionVectors (r): A cell array containing the frame motion vectors,
+%    organised as {GOP index, frame index in GOP}
+%    * huffmanTablesPerGOP (r): struct of custom Huffman tables for GOP,the
+%    motion vector tables are under the 'motionvectors' sub property.
+%    * codedMotionVectors (r): encoded motion vector arrays in cell array
+%    organised as {GOP index, frame index in GOP}.
+%    * predictionErrorFrame (r): residual frames in cell array organised as
+%    {GOP index, frame index in GOP}.
+%    * reconstructedPredictionErrorFrame (r): residual frames
+%    reconstruction after encoding, in cell array organised as {GOP index, 
+%    frame index in GOP}. 
+%    * gopStatistics (r): a cell array of structures. One per GOP, contains
+%    subproperties 'bits' and 'headerBits' for the GOP and a cell array of
+%    structures called 'frames'. It contains a struct per frame containing
+%    the propeties: 'type' (I, P), 'frameBits', 'motionVectorBits', 'bits'.
+%    * reconstructedVideo (r):  this is set to the YCbCr frames of the
+%    reconstructed inverse quantised/transformed/motion compensated data. 
+%
+%   Video.encoder public methods:
+%    * encoder(source, parameters): Constructor takes optional source
+%    filename, image sequence string and optional parameters
+%    * encode(parameters): Actual encode procedure, returns a logical or
+%    numeric array of the output bitstream.
+%    * encodeToFile(filename, parameters): Actual encode procedure with
+%    specific output file for bitstream. Returns boolean to indicate
+%    success.
+%    * playVideo: first parameter is a string, either 'in' or 'out' to
+%    indicate the frames to display. After this are optional parameters:
+%       * parent: a handle to the parent figure to display on
+%       * title: a string title for the new figure if no parent
+%       * framerate: the playback framerate
+%       * showresidual: if true the residual frame is shown
+%       * showmotionvectors: if true motion vectors are overlaid
+%       * manualcontrol: if true the user must press a key to advance one
+%       frame
+%    * getGOPAndFrameIndex: convert a frame index into a GOP index and GOP
+%    frame index.
+%
+%   Parameters:
+%   * gop:  a string indicating the GOP structure composed of I and Ps
+%   * framerate: a framerate for the video
+%   * blockmatching: the desired block matching algorithm (eg FSA for full
+%   search and DSA for diamond search)
+%   * blockmatchingsearchdistance: the maximum search size for block
+%   matching
+%   * macroblocksize: the size in pixels of the macroblocks
+%   * blockmatchingverbose: verbose output for block matching (generates
+%   a lot of output!)
+%   * blockmatchingdifferencecalculation: the difference calculation, e.g.
+%   SAD (sum of absolute differences) or MAD (mean absolute difference).
+%
+%   Example commands:
+%       obj = Video.encoder('examples/vidseq/suzie_:001:070:.png');
+%       bits = obj.encode('gop', 'ipppp', 'verbose', true, 'Quality', 80, 'BlockMatchingSearchDistance', 8, 'BlockMatching', 'DSA');
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties (SetObservable, SetAccess='protected')
         structureOfGOPString
@@ -43,7 +126,6 @@ classdef encoder < JPEG.encoder
 
         function readInput(obj, data)
             % Override JPEG one
-            
             if isa(data, 'char')
                 % either jpeg range or AVI file
                 % split at : if 3 of them its image range, else avi file and range, if one only if start frame for video, else if none then assume video
@@ -82,15 +164,7 @@ classdef encoder < JPEG.encoder
                             obj.imageMatrix = cat(4, obj.imageMatrix, rgb2ycbcr(imread(obj.input.filePaths{i})));
                         end
                 end
-                
-            elseif isa(data, 'cell')
-                % cell array of frames, either subsampled or not
-                % *************************
-                
             elseif isa(data, 'numeric')
-                
-                % check is 4D ?
-                
                 obj.inputMatrix = data;
             else
                 throw(MException('Video.encoder:input', 'Input can be: 4d matrix, a string image path prefix and range of frames of sequential group (e.g. /path/to/images/i:01:99:.jpg for images named images ''i01.jpg'' to ''i99.jpg''), a cell array of images or a path to an AVI file and the frame range to load (e.g. /path/to/test.avi:10:20)'));
