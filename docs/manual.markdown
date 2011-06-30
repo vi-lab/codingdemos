@@ -113,15 +113,68 @@ shows the Cb channel for the current mode and the bottom right the Cr channel.
 
 ### Screen 3: JPEG Image Compression
 
-desc
+The screen demonstrates a top level view of JPEG image compression. An input
+image is selected and passes through a full MATLAB implementation of a JPEG
+encoder and decoder. The JPEG Quality factor is set by the slider in top left.
+While coding is occurring the slider greys out. When complete the resulting
+images are displayed with statistics on compression and PSNR.
 
-### Screen 4: DCT Transform Coding
+Note due to the slightly slow implementation of our JPEG encoder and decoder in
+MATLAB if changing the input image or the JPEG quality factor there will be a
+delay of a few seconds. The application then caches the result. Note however
+that the more the cached results the longer the startup time for the demo,
+hence it might be wise to clear the cache by removing the `JPEGcache.mat`
+occasionally.
 
-desc
+### Screen 4: Transform Coding with the DCT
 
-### Screen 5: Motion Compensated Video Coding
+After selecting an input image the input and output from the transform coding
+process are shown in the left and right image axes. In the centre of the frame
+a grid shows images of the DCT bases arranged so that top left is the DC
+coefficient and the bottom right the highest frequency component in both the
+horizontal and vertical directions. Click on a basis to disable that
+coefficient. Use the `Set All` and `Remove All` buttons to perform these
+actions accordingly. At each basis click the output image will update.
 
-desc
+Note `disabling` a DCT basis effectively zeros that coefficient in the inverse
+transform.
+
+The JPEG quality slider sets the quantisation parameter for the coding process.
+The slider goes grey while the output is being updated.
+
+The tables of numbers in the bottom half of the screen show the pixels,
+coefficients, quantised coefficients, dequantised and inverse transformed
+coefficients and final output pixels of the currently selected 8x8 pixel block.
+
+To select a block simply click on the input image axes. A rectangle will display
+the location of the selected block.
+
+### Screen 5: Motion Compensated Video Encoder
+
+This demo displays the outputs from a number of stages of a generic video
+encoder. The input video sequence is selected from a set of fixed options in
+the top left. Playback is started or paused using the `Play` toggle button. If
+playback is paused then the input can be stepped forward at a single frame at a
+time using the `Step 1 Frame` button. The top left checkbox `Loop Video?` if
+enabled allows video playback to loop. 
+
+The checkbox in the top middle of the screen enables the display of the
+residual frames, both before and after coding. Due to a quirk of the layering
+of MATLAB when enabled the text in the diagram is disabled.
+
+To view a particular output in larger size simply click on the desired output.
+The first click will slightly expand the size of the output and the second
+click will expand the output to fullscreen. A third click restores the view to
+its original size.
+
+The output graph has a drop down selection box underneath which allows the user
+to choose the output statistic to display. To see the output graph update after
+changing the video must be playing, or stepped forward one frame.
+
+Note the start time for this screen can be significant as the video cache is
+loaded. Also note that if it is the 1st time this demo is being run a cache of
+results may need to be created resulting in a long startup. You can see the
+progress of this in the MATLAB console.
 
 ### Screen 6: Block Matching for Motion Compensation
 
