@@ -24,11 +24,15 @@ classdef Correlation < GUIs.base
         hVideoStepButton
         hVideoLoadButton
         hVideoRandomButton
+        hVideoSamplesSliderText
+        hVideoSamplesSlider
 
         videoEncoder
         chosenVideoPoint
 
+        videoData
         currentFrame = 0;
+        numberOfVideoSamples = 10;
     end
 
     methods
@@ -51,6 +55,15 @@ classdef Correlation < GUIs.base
             set(get(obj.hSpatialCorrelationAxes,'XLabel'),'String','Offset in Pixels');
             set(get(obj.hSpatialCorrelationAxes,'YLabel'),'String','Correlation');
             obj.hSpatialInfo = obj.createTextElement([0.35 0.97 0.4 0.03], ['Chosen Row: ' num2str(obj.chosenRow)], 12, 'on', 'white', obj.hExternalPanel);
+            obj.hSamplesSliderText = obj.createTextElement([0.6 0.96 0.14 0.03], 'No. Samples:', 10, false);
+            obj.hSamplesSlider = uicontrol('Style', 'slider', ...
+                                                'Visible', 'off', ...
+                                                'Parent', obj.hExternalPanel, ...
+                                                'Min', 1, 'Max', 100, ...
+                                                'Units', 'Normalized', ...
+                                                'Position', [0.74 0.96 0.25 0.03], ...
+                                                'Value', obj.numberOfSamples,...
+                                                'Callback', @(source, event)(obj.sampleNumberChange(source)));
 
             obj.hMotionCorrelationPanel = uipanel('FontSize', 12,  ...
                             'FontName', 'Courier', ...
@@ -86,35 +99,19 @@ classdef Correlation < GUIs.base
                                         'Units', 'Normalized', ...
                                         'Position', [0.21 0.82 0.1 0.05],...
                                         'Callback', @(src,evt)(obj.randomVideo(src)));
-
-            obj.hSamplesSliderText = obj.createTextElement([0.6 0.96 0.14 0.03], 'No. Samples:', 10, 'off');
-            obj.hSamplesSlider = uicontrol('Style', 'slider', ...
+            obj.hVideoSamplesSliderText = obj.createTextElement([0.6 0.88 0.14 0.05], 'No. Samples:', 10, false, 'white', obj.hMotionCorrelationPanel);
+            obj.hVideoSamplesSlider = uicontrol('Style', 'slider', ...
                                                 'Visible', 'off', ...
-                                                'Parent', obj.hExternalPanel, ...
+                                                'Parent', obj.hMotionCorrelationPanel, ...
                                                 'Min', 1, 'Max', 100, ...
                                                 'Units', 'Normalized', ...
-                                                'Position', [0.74 0.96 0.25 0.03], ...
-                                                'Value', obj.numberOfSamples,...
-                                                'Callback', @(source, event)(obj.sampleNumberChange(source)));
+                                                'Position', [0.74 0.88 0.25 0.05], ...
+                                                'Value', obj.numberOfVideoSamples,...
+                                                'Callback', @(source, event)(obj.videoSampleNumberChange(source)));
                                     
             obj.changeInput(obj.hInputImageSelect);
 
             obj.setSliderLength();
-        end
-
-        function videoLoad(obj, source)
-            set(source, 'Enable', 'off');
-            obj.videoEncoder = Video.encoder('examples/imseq/vid:0000:0025:.jpg');
-            obj.videoPlay(obj.hVideoPlayButton);
-        end
-
-        function randomVideo(obj, source)
-            obj.chosenVideoPoint = [1 1];
-            obj.videoEncoder = [];
-            set(source, 'Enable', 'on');
-            set(obj.hVideoLoadButton, 'Enable', 'on');
-            obj.videoEncoder.imageMatrix = rand(256,256,1,20);
-            obj.videoPlay(obj.hVideoPlayButton);
         end
 
         function changeInput(obj, source)
@@ -179,6 +176,25 @@ classdef Correlation < GUIs.base
             end
         end
 
+        function videoLoad(obj, source)
+            set(source, 'Enable', 'off');
+            obj.videoEncoder = Video.encoder('examples/imseq/vid:0000:0025:.jpg');
+            obj.videoData = zeros(1,size(obj.videoEncoder.imageMatrix,4));
+            obj.setVideoSliderLength();
+            obj.videoPlay(obj.hVideoPlayButton);
+        end
+
+        function randomVideo(obj, source)
+            obj.chosenVideoPoint = [1 1];
+            obj.videoEncoder = [];
+            set(source, 'Enable', 'on');
+            set(obj.hVideoLoadButton, 'Enable', 'on');
+            obj.videoEncoder.imageMatrix = rand(256,256,1,20);
+            obj.videoData = zeros(1,size(obj.videoEncoder.imageMatrix,4));
+            obj.setVideoSliderLength();
+            obj.videoPlay(obj.hVideoPlayButton);
+        end
+
         function videoClick(obj, source)
            % handle input / output image clicks
             if ~isempty(obj.videoEncoder.imageMatrix)
@@ -187,24 +203,24 @@ classdef Correlation < GUIs.base
             end
         end
 
+        function setVideoSliderLength(obj)
+            set(obj.hVideoSamplesSlider, 'Value', min(10,size(obj.videoEncoder.imageMatrix,4)));
+            set(obj.hVideoSamplesSlider, 'Max', size(obj.videoEncoder.imageMatrix,4));
+            obj.videoSampleNumberChange(obj.hVideoSamplesSlider);
+        end
+
+        function videoSampleNumberChange(obj, source)
+            obj.numberOfVideoSamples = ceil(get(source, 'Value'));
+        end
+
         function videoPlay(obj, source)
             set(source, 'Enable', 'off');
             set(obj.hVideoStepButton, 'Enable', 'off');
             set(obj.hVideoRandomButton, 'Enable', 'off');
-            
-            data = zeros(1,size(obj.videoEncoder.imageMatrix,4));
-            for i=1:size(obj.videoEncoder.imageMatrix,4)
+            for i=1:obj.numberOfVideoSamples
                 obj.hVideo = imshow(obj.videoEncoder.imageMatrix(:,:,1,i), 'Parent', obj.hVideoAxes);
                 set(obj.hVideo, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source)));
-                obj.chosenVideoPoint
-                data(1,i) = obj.videoEncoder.imageMatrix(obj.chosenVideoPoint(2),obj.chosenVideoPoint(1),1,i);
-                data = data - mean(data(:));
-                coefs = xcorr(data, i, 'unbiased');
-                plot(obj.hTemporalCorrelationAxes, coefs(ceil(length(coefs)/2):end));
-                xlim(obj.hTemporalCorrelationAxes, [1 size(obj.videoEncoder.imageMatrix,4)]);
-                set(get(obj.hTemporalCorrelationAxes,'XLabel'),'String','Offset in Time (Frames)');
-                set(get(obj.hTemporalCorrelationAxes,'YLabel'),'String','Correlation');
-                set(obj.hVideoInfo, 'String', ['Chosen Pixel: (' num2str(obj.chosenVideoPoint(1)) ',' num2str(obj.chosenVideoPoint(2)) ')']);
+                obj.updateVideoPlot(i);
                 pause(0.05);
             end 
             set(obj.hVideoRandomButton, 'Enable', 'on');
@@ -214,23 +230,26 @@ classdef Correlation < GUIs.base
 
         function videoStep(obj, source)
             obj.currentFrame = obj.currentFrame + 1;
-            if obj.currentFrame > size(obj.videoEncoder.imageMatrix,4)
+            if obj.currentFrame > obj.numberOfVideoSamples
                 obj.currentFrame = 1;
             end
-            i = obj.currentFrame;
             set(source, 'Enable', 'off');
-            data = zeros(1,size(obj.videoEncoder.imageMatrix,4));
-            obj.hVideo = imshow(obj.videoEncoder.imageMatrix(:,:,1,i), 'Parent', obj.hVideoAxes);
+            obj.hVideo = imshow(obj.videoEncoder.imageMatrix(:,:,1,obj.currentFrame), 'Parent', obj.hVideoAxes);
             set(obj.hVideo, 'ButtonDownFcn', @(source, evt)(obj.videoClick(source)));
-            data(1,i) = obj.videoEncoder.imageMatrix(obj.chosenVideoPoint(2),obj.chosenVideoPoint(1),1,i);
-            data = data - mean(data(:));
-            coefs = xcorr(data, i, 'unbiased');
+            obj.updateVideoPlot(obj.currentFrame);
+            set(source, 'Enable', 'on');
+        end
+
+        function updateVideoPlot(obj, frame)
+            obj.videoData(1,frame) = obj.videoEncoder.imageMatrix(obj.chosenVideoPoint(2),obj.chosenVideoPoint(1),1,frame);
+            data = obj.videoData;
+            data(1,1:frame) = data(1,1:frame) - mean(data(1,1:frame) );
+            coefs = xcorr(data, frame-1, 'unbiased');
             plot(obj.hTemporalCorrelationAxes, coefs(ceil(length(coefs)/2):end));
-            xlim(obj.hTemporalCorrelationAxes, [1 size(obj.videoEncoder.imageMatrix,4)]);
+            xlim(obj.hTemporalCorrelationAxes, [1 obj.numberOfVideoSamples]);
             set(get(obj.hTemporalCorrelationAxes,'XLabel'),'String','Offset in Time (Frames)');
             set(get(obj.hTemporalCorrelationAxes,'YLabel'),'String','Correlation');
             set(obj.hVideoInfo, 'String', ['Chosen Pixel: (' num2str(obj.chosenVideoPoint(1)) ',' num2str(obj.chosenVideoPoint(2)) ')']);
-            set(source, 'Enable', 'on');
         end
 
         function handleKeyPress(obj, source, event)
@@ -258,10 +277,14 @@ classdef Correlation < GUIs.base
                 % on
                 set(obj.hSamplesSliderText, 'Visible', 'on');
                 set(obj.hSamplesSlider, 'Visible', 'on');
+                set(obj.hVideoSamplesSliderText, 'Visible', 'on');
+                set(obj.hVideoSamplesSlider, 'Visible', 'on');
             else
                 % off
                 set(obj.hSamplesSliderText, 'Visible', 'off');
                 set(obj.hSamplesSlider, 'Visible', 'off');
+                set(obj.hVideoSamplesSliderText, 'Visible', 'off');
+                set(obj.hVideoSamplesSlider, 'Visible', 'off');
             end
             
         end
