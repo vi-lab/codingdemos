@@ -67,19 +67,19 @@ for block=1:size(coeffs, 1)
         overFifteens = find(runLengths > 15);
         
         % Work out how many (15,0)s are needed
-        fifteensNeeded  = floor(runLengths(overFifteens) / 15);
-        remainders      = rem(runLengths(overFifteens), 15);
+        fifteensNeeded  = floor(runLengths(overFifteens) / 16);
+        remainders      = rem(runLengths(overFifteens), 16);
         % Update with remainder zeros number
         runLengths(overFifteens) = remainders;
         % Insert (15,0)s
         for i=1:length(overFifteens)
             if fifteensNeeded(i)
                 count = fifteensNeeded(i);
-                vs = ones(1,count).*15;
-                zs = zeros(1,count);
+                zs = ones(1,count).*15;
+                vs = zeros(1,count);
                  % insert and remove last 'count' values which will be -1s
-                runLengths = [runLengths(1:overFifteens(i)-1) vs runLengths(overFifteens(i):end - count)];
-                values = [values(1:overFifteens(i)-1) zs values(overFifteens(i):end - count)];
+                runLengths = [runLengths(1:overFifteens(i)-1) zs runLengths(overFifteens(i):end - count)];
+                values = [values(1:overFifteens(i)-1) vs values(overFifteens(i):end - count)];
             end
         end
     end
