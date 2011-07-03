@@ -113,11 +113,11 @@ classdef base < handle
                                         'Units', 'Normalized', ...
                                         'Position', [0.0 .01 1.0 .95]);
 
-            obj.createTextElement([0.0 .96 1.0 0.035], [' ' panelTitle], 15, true, [.8 .8 .8], obj.hMainWindow);
+            obj.createTextElement([0.0 .96 1.0 0.035], [' ' panelTitle], 15, true, [.8 .8 .8], obj.hMainWindow, 'FontName', 'arial');
 
         end
 
-        function handle = createTextElement(obj, position, text, fontSize, visible, backgroundColor, parent)
+        function handle = createTextElement(obj, position, text, fontSize, visible, backgroundColor, parent, varargin)
             % ---------------------
             % Create a text element
             % ---------------------
@@ -159,7 +159,7 @@ classdef base < handle
                                 'Position', position, ...
                                 'BackgroundColor', backgroundColor,...
                                 'Fontsize', fontSize, ...
-                                'FontName', 'Courier New');
+                                'FontName', 'Courier New', varargin{:});
         end
 
         function createInputImageSelectComboBoxAndText(obj, textPosition, position, examplesDirectory)
@@ -181,18 +181,42 @@ classdef base < handle
                 obj.examplesDirectory = examplesDirectory;
             end
 
-            obj.hInputImageSelectText = obj.createTextElement(textPosition, 'Input Image:');
+            obj.hInputImageSelectText = obj.createTextElement(textPosition, 'Input Image:', 11, true, 'white', obj.hExternalPanel, 'FontName', 'helvetica');
 
             obj.hInputImageSelect = uicontrol('Style', 'popupmenu', ...
                                         'Parent', obj.hExternalPanel, ...
                                         'FontSize', 11, ...
-                                        'FontName', 'Courier New',...
+                                        'FontName', 'arial',...
                                         'Units', 'Normalized', ...
                                         'Position', position,...
                                         'String', obj.getExampleImagesFromExamplesDirectory(),...
                                         'Callback', @(source, event)(obj.changeInput(source)));
             p = getpixelposition(obj.hInputImageSelect);
             setpixelposition(obj.hInputImageSelect, [p(1) p(2) 200 50]);
+        end
+
+        function createInputVideoSelectComboBoxAndText(obj, textPosition, position)
+            % --------------------------------------
+            % Create a combobox with examples videos
+            % --------------------------------------
+            %
+            % Create a drop down (popupmenu) style uicontrol populated
+            % with the video file names.
+            % Parameters:
+            %   * textPosition: the position of the partner text element in
+            %   normalised units.
+            %   * position: the position of the dropdown in normalised
+            %   units
+            obj.hInputImageSelectText = obj.createTextElement(textPosition, 'Input Sequence:', 11, true, 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.hInputImageSelect = uicontrol('Style', 'popupmenu', ...
+                                        'Parent', obj.hExternalPanel, ...
+                                        'FontSize', 11, ...
+                                        'FontName', 'Helvetica',...
+                                        'Units', 'Normalized', ...
+                                        'Position',position,...
+                                        'String', {'Suzie (I, 4 P) Quality 80' 'Foreman  (I, 4 P) Quality 50' 'Carphone  (I, 9 P) Quality 80'},...
+                                        'Value', 1, ...
+                                        'Callback', @(source, event)(obj.changeVideoInput(source)));
         end
 
         function ax = createAxesForImage(obj, position, parent)
@@ -251,6 +275,14 @@ classdef base < handle
             end
 
             obj.inputMatrix = rgb2ycbcr(imageRGB);
+        end
+
+        function changeVideoInput(obj, source)
+            % ---------------------------------------------
+            % Default callback for the input video combobox
+            % ---------------------------------------------
+            %
+            % The default callback for video examples.
         end
 
         function changeZoomMode(obj, source)

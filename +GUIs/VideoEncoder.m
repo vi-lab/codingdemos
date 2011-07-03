@@ -1,8 +1,33 @@
 classdef VideoEncoder < GUIs.base
-%VIDEOENCODER Summary of this class goes here
-%   Detailed explanation goes here
+%VIDEOENCODER A generic motion compensated video coder demo
+%
+%   +GUIs/VideoEncoder.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   This demo shows the block diagram for a generic motion compensated
+%   video coder and shows outputs of the encoding process including, the
+%   residual frame both before and after coding, the motion vectors for
+%   each macroblock and the input and final reconstructed output image. A
+%   graph also displays statistics such as bits per frame for both residual
+%   data and motion vectors and PSNR per frame. A large text banner
+%   displays the type of frame (I or P).
+%   Note: outputs can be zoomed by clicking on them. Click again to restore
+%   to original size.
+%
+%   Note: Due to the way MATLAB handles ordering of UI elements text
+%   elements are always higher than figures, regardless of the ordering
+%   specified for the figure. Therefore when figures are zoomed the text
+%   elements on the page are temporarily disabled.
+%
+%   Start a new screen by calling the class constructor:
+%       `GUIs.VideoEncoder`
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties
+        videoEncoders
         videoEncoder
 
         hFrameTextInfo
@@ -15,6 +40,9 @@ classdef VideoEncoder < GUIs.base
 
         videoStatAxes
         videoBitRateAxes
+        statGraphZoomState
+        statGraphPosition
+        statGraphZoomDelta
 
         videoPlayers
         playTimer
@@ -25,19 +53,20 @@ classdef VideoEncoder < GUIs.base
 
     methods
         function obj = VideoEncoder()
-            obj = obj@GUIs.base('VideoEncoder');
-            if ~exist( 'cachedVideo.mat', 'file')
+            obj = obj@GUIs.base('Video Encoding: A motion compensated video encoder');
+            if ~exist( 'cachedVideos.mat', 'file')
                 obj.reloadVideo(obj);
             else
-                load('cachedVideo.mat', 've');
-                obj.videoEncoder = ve;
+                load('cachedVideos.mat', 've');
+                obj.videoEncoders = ve;
             end
 
             % UI Elements
+            obj.createInputVideoSelectComboBoxAndText([0.01 0.93 0.1 0.03], [0.1 0.93 0.2 0.03]);
             obj.hRepeatCheckBox = uicontrol('Style', 'checkbox', ...
                                     'Parent', obj.hExternalPanel, ...
                                     'FontSize', 9, ...
-                                    'FontName', 'Courier New',...
+                                    'FontName', 'Helvetica',...
                                     'Units', 'Normalized', ...
                                     'Position',[0.02 0.97 0.1 0.03],...
                                     'String', 'Loop Video?',...
@@ -46,7 +75,7 @@ classdef VideoEncoder < GUIs.base
             obj.hPlayPauseButton = uicontrol('Style', 'togglebutton', ...
                                     'Parent', obj.hExternalPanel, ...
                                     'FontSize', 9, ...
-                                    'FontName', 'Courier New',...
+                                    'FontName', 'Helvetica',...
                                     'Units', 'Normalized', ...
                                     'Position',[0.12 0.97 0.1 0.03],...
                                     'String', 'Pause',...
@@ -55,7 +84,7 @@ classdef VideoEncoder < GUIs.base
             obj.hStepButton = uicontrol('Style', 'pushbutton', ...
                                     'Parent', obj.hExternalPanel, ...
                                     'FontSize', 9, ...
-                                    'FontName', 'Courier New',...
+                                    'FontName', 'Helvetica',...
                                     'Units', 'Normalized', ...
                                     'Position',[0.22 0.97 0.1 0.03],...
                                     'String', 'Step 1 Frame',...
@@ -64,21 +93,21 @@ classdef VideoEncoder < GUIs.base
             obj.hShowResidualsCheckBox = uicontrol('Style', 'checkbox', ...
                                     'Parent', obj.hExternalPanel, ...
                                     'FontSize', 9, ...
-                                    'FontName', 'Courier New',...
+                                    'FontName', 'Helvetica',...
                                     'Units', 'Normalized', ...
-                                    'Position',[0.45 0.97 0.1 0.03],...
+                                    'Position',[0.35 0.97 0.13 0.03],...
                                     'String', 'Show Residuals?',...
                                     'Value', 0,...
                                     'Callback', @(source, event)(obj.toggleShowResiduals(source)));
 
-            obj.hFrameTextInfo = obj.createTextElement([0.01 0.01 0.7 0.04], '(Frame info)', 14, 'on', 'white', obj.hExternalPanel);
+            obj.hFrameTextInfo = obj.createTextElement([0.55 0.95 0.44 0.04], '(Frame info)', 14, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica', 'BackgroundColor', [0.8 0.8 0.8], 'HorizontalAlignment', 'center');
 
             obj.hStatSelect = uicontrol('Style', 'popupmenu', ...
                                         'Parent', obj.hExternalPanel, ...
                                         'FontSize', 11, ...
                                         'FontName', 'Courier New',...
                                         'Units', 'Normalized', ...
-                                        'Position',[0.69 0.6 0.25 0.03],...
+                                        'Position',[0.69 0.5 0.25 0.03],...
                                         'String', {'Total bits per Frame (split bar)','Residual coding bits per Frame','Motion vectors bits per Frame', 'Total bits per Frame (single bar)','PSNR per Frame'},...
                                         'Callback', @(source, event)(obj.changeStatsOnDisplay(source)));
             % draw encoder
@@ -95,52 +124,52 @@ classdef VideoEncoder < GUIs.base
             obj.lineWithArrowHead([0.3 0.745], [0.33 0.745]); % in to sum
 
             rectangle('Position', [0.33 0.72 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node
-            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.66 0.07 0.03], 'subtract', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{1} = obj.createTextElement([0.35 0.68 0.03 0.02], '-', 10, 'on', 'white', obj.hExternalPanel);
 
-            obj.lineWithArrowHead([0.36 0.745], [0.4 0.745]); % sum to t/q
+            obj.lineWithArrowHead([0.36 0.745], [0.39 0.745]); % sum to t/q
 
-            box = rectangle('Position', [0.40 0.70 0.08 0.10], 'Parent', mainCanvas); % t/q
-            obj.hDiagramElements{2} = obj.createTextElement([0.405 0.705 0.07 0.09],'Transform/Quantisation', 10, 'on', 'white', obj.hExternalPanel);
+            box = rectangle('Position', [0.39 0.70 0.1 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % t/q
+            obj.hDiagramElements{2} = obj.createTextElement([0.395 0.705 0.09 0.06],'Transform & Quantisation', 10, 'on', 'white', obj.hExternalPanel,'HorizontalAlignment', 'center',  'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.48 0.745], [0.55 0.745]); %t/q to entropy
+            obj.lineWithArrowHead([0.49 0.745], [0.57 0.745]); %t/q to entropy
 
-            rectangle('Position', [0.55 0.70 0.08 0.10], 'Parent', mainCanvas); % entropy
-            obj.hDiagramElements{3} = obj.createTextElement([0.555 0.705 0.07 0.09], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.57 0.70 0.08 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % entropy
+            obj.hDiagramElements{3} = obj.createTextElement([0.575 0.705 0.07 0.06], 'Entropy Coding', 10, 'on', 'white', obj.hExternalPanel,'HorizontalAlignment', 'center',  'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.63 0.745], [0.69 0.745]); % entropy to out
+            obj.lineWithArrowHead([0.65 0.745], [0.69 0.745]); % entropy to out
 
-            obj.lineWithArrowHead([0.5 0.745], [0.5 0.6]); % t/q to inv t/q
+            obj.lineWithArrowHead([0.53 0.745], [0.53 0.6]); % t/q to inv t/q
 
-            rectangle('Position', [0.45 0.50 0.10 0.10], 'Parent', mainCanvas); % inv t/q
-            obj.hDiagramElements{4} = obj.createTextElement([0.455 0.505 0.09 0.09], 'Inverse Quantisation/Transform', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.48 0.50 0.10 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % inv t/q
+            obj.hDiagramElements{4} = obj.createTextElement([0.485 0.505 0.09 0.07], 'Inverse Quantisation & Transform', 10, 'on', 'white', obj.hExternalPanel,'HorizontalAlignment', 'center',  'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.5 0.5], [0.5 0.45]); % inv t/q to reconstruction adder node
+            obj.lineWithArrowHead([0.53 0.5], [0.53 0.45]); % inv t/q to reconstruction adder node
 
-            rectangle('Position', [0.485 0.40 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node after inv t/q
-            obj.hDiagramElements{5} = obj.createTextElement([0.43 0.435 0.04 0.03], 'add', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.515 0.40 0.03 0.05], 'Curvature', [1,1], 'Parent', mainCanvas); % sum node after inv t/q
+            obj.hDiagramElements{5} = obj.createTextElement([0.48 0.435 0.015 0.02], '+', 10, 'on', 'white', obj.hExternalPanel);
 
-            obj.lineWithArrowHead([0.5 0.4], [0.5 0.35]); % recon to buffer
+            obj.lineWithArrowHead([0.53 0.4], [0.53 0.35]); % recon to buffer
 
-            rectangle('Position', [0.47 0.25 0.10 0.10], 'Parent', mainCanvas); % buffer
-            obj.hDiagramElements{6} = obj.createTextElement([0.475 0.255 0.09 0.09], 'Frame Buffer', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.48 0.25 0.10 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % buffer
+            obj.hDiagramElements{6} = obj.createTextElement([0.485 0.255 0.09 0.06], 'Frame Buffer', 10, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
-            obj.lineWithArrowHead([0.47 0.3], [0.4 0.3]); % buffer to mec (ref)
+            obj.lineWithArrowHead([0.48 0.3], [0.4 0.3]); % buffer to mec (ref)
             obj.lineWithArrowHead([0.31 0.745], [0.31 0.35]); % input to mec (ref)
 
-            rectangle('Position', [0.30 0.25 0.10 0.10], 'Parent', mainCanvas); % mec
-            obj.hDiagramElements{7} = obj.createTextElement([0.305 0.255 0.09 0.09], 'Motion Estimation/Compensation', 10, 'on', 'white', obj.hExternalPanel);
+            rectangle('Position', [0.30 0.25 0.10 0.10], 'Parent', mainCanvas, 'Curvature', 0.1); % mec
+            obj.hDiagramElements{7} = obj.createTextElement([0.305 0.255 0.09 0.07], 'Motion Estimation & Compensation', 10, 'on', 'white', obj.hExternalPanel, 'HorizontalAlignment', 'center', 'FontName', 'helvetica');
 
             line([0.35 0.35], [0.25 0.2], 'Color', [0 0 0]);
-            line([0.35 0.6], [0.2 0.2], 'Color', [0 0 0]);
-            obj.lineWithArrowHead([0.6 0.2], [0.6 0.7]); % Mec to entropy
+            line([0.35 0.62], [0.2 0.2], 'Color', [0 0 0]);
+            obj.lineWithArrowHead([0.62 0.2], [0.62 0.7]); % Mec to entropy
 
             obj.lineWithArrowHead([0.345 0.35], [0.345 0.72]); % Mec to input sum
-            obj.lineWithArrowHead([0.345 0.425], [0.485 0.425]); % prediction to recon summer
+            obj.lineWithArrowHead([0.345 0.425], [0.515 0.425]); % prediction to recon summer
             
-            obj.hDiagramElements{8} = obj.createTextElement([0.01 0.93 0.25 0.03], 'Input Frames', 10, 'on', 'white', obj.hExternalPanel);
-            obj.hDiagramElements{9} = obj.createTextElement([0.69 0.53 0.25 0.03], 'Output Frames', 10, 'on', 'white', obj.hExternalPanel);
-            obj.hDiagramElements{10} = obj.createTextElement([0.01 0.53 0.25 0.03], 'Motion Vectors', 10, 'on', 'white', obj.hExternalPanel);
-            obj.hDiagramElements{11} = obj.createTextElement([0.69 0.95 0.25 0.03], 'Output Data per Frame', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{8} = obj.createTextElement([0.01 0.88 0.25 0.03], 'Input Frames', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{9} = obj.createTextElement([0.69 0.43 0.25 0.03], 'Output Frames', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{10} = obj.createTextElement([0.01 0.43 0.25 0.03], 'Motion Vectors', 10, 'on', 'white', obj.hExternalPanel);
+            obj.hDiagramElements{11} = obj.createTextElement([0.69 0.885 0.25 0.03], 'Output Data per Frame', 10, 'on', 'white', obj.hExternalPanel);
             %obj.hDiagramElements{12} = obj.createTextElement([0.4 0.95 0.25 0.03], 'Residual Frame', 10, 'on', 'white', obj.hExternalPanel);
             %obj.hDiagramElements{13} = obj.createTextElement([0.4 0.65 0.25 0.03], 'Coded Residual Frame', 10, 'on', 'white', obj.hExternalPanel);
 
@@ -148,26 +177,40 @@ classdef VideoEncoder < GUIs.base
             ylim(mainCanvas, [0 1]);
 
             % Axes
-            obj.setVideoPlayer('input', obj.videoEncoder.imageMatrix, ...
-                                [0.01 0.65 0.28 0.28], [0 -0.15 0.2 0.2]);
-            obj.setVideoPlayer('output', obj.videoEncoder.reconstructedVideo, ...
-                                [0.69 0.25 0.28 0.28], [-0.2 -0.2 0.2 0.2]);
-            obj.setVideoPlayer('residual', obj.videoEncoder.predictionErrorFrame, ...
+            obj.createVideoPlayer('input', ...
+                                [0.01 0.60 0.28 0.28], [0 -0.15 0.2 0.2]);
+            obj.createVideoPlayer('output', ...
+                                [0.69 0.15 0.28 0.28], [-0.2 -0.2 0.2 0.2]);
+            obj.createVideoPlayer('residual', ...
                                 [0.4 0.75 0.2 0.2], [-0.1 -0.2 0.2 0.2]);
-            obj.setVideoPlayer('reconstructedresidual', obj.videoEncoder.reconstructedPredictionErrorFrame, ...
+            obj.createVideoPlayer('reconstructedresidual', ...
                                 [0.4 0.45 0.2 0.2], [-0.1 -0.3 0.2 0.2]);
-            obj.setVideoPlayer('motionvectors', obj.videoEncoder.reconstructedVideo, ...
-                                [0.01 0.25 0.28 0.28], [0 -0.2 0.2 0.2]);
+            obj.createVideoPlayer('motionvectors', ...
+                                [0.01 0.15 0.28 0.28], [0 -0.10 0.2 0.2]);
 
-            obj.videoBitRateAxes = axes('Position', [0.69 0.65 0.3 0.3], 'Parent', obj.hExternalPanel);
+            obj.changeVideoInput(obj.hInputImageSelect);
+
+            obj.statGraphPosition = [0.70 0.55 0.28 0.3];
+            obj.videoBitRateAxes = axes('Position', [0.70 0.55 0.28 0.3], 'Parent', obj.hExternalPanel);
+            obj.statGraphZoomState = 0;
+            obj.statGraphZoomDelta = [-0.2 -0.2 0.2 0.2];
 
             obj.toggleShowResiduals(obj.hShowResidualsCheckBox);
             obj.togglePlayVideo(obj.hPlayPauseButton);
         end
  
-        function ax = setVideoPlayer(obj, type, matrix, pos, zoomPosDelta)
+        function ax = createVideoPlayer(obj, type, pos, zoomPosDelta)
             playerID = length(obj.videoPlayers) + 1;
             ax = obj.createAxesForImage(pos, obj.hExternalPanel);
+            %obj.setVideoPlayer(playerID, type, matrix);
+            obj.videoPlayers{playerID}.position = pos;
+            obj.videoPlayers{playerID}.zoomstate = 0;
+            obj.videoPlayers{playerID}.zoomdelta = zoomPosDelta;
+            obj.videoPlayers{playerID}.frame = 0;
+            obj.videoPlayers{playerID}.parent = ax;
+        end
+
+        function setVideoPlayer(obj, playerID, type, matrix)
             switch type
                 case {'residual', 'reconstructedresidual'}
                     % turn into matrix block
@@ -191,13 +234,24 @@ classdef VideoEncoder < GUIs.base
                     obj.videoPlayers{playerID}.data = matrix;
                     obj.videoPlayers{playerID}.type = 'motionvectorsonrgbimagedata';
             end
-            obj.videoPlayers{playerID}.position = pos;
-            obj.videoPlayers{playerID}.zoomstate = 0;
-            obj.videoPlayers{playerID}.zoomdelta = zoomPosDelta;
-            obj.videoPlayers{playerID}.frame = 0;
-            obj.videoPlayers{playerID}.parent = ax;
         end
 
+        function graphClick(obj, source)
+            switch obj.statGraphZoomState
+                case 0
+                    obj.hideControls();
+                    set(source, 'Position', obj.statGraphPosition + obj.statGraphZoomDelta);
+                    obj.statGraphZoomState = 1;
+                case 1
+                    set(source, 'Position', [0.1 0.1 0.8 0.8]);
+                    obj.statGraphZoomState = 2;
+                case 2
+                    set(source, 'Position', obj.statGraphPosition);
+                    obj.statGraphZoomState = 0;
+                    obj.showControls();
+            end            
+        end
+        
         function videoClick(obj, source, playerID)
             % maximise video
             container = get(get(source, 'Parent'), 'Parent');
@@ -228,7 +282,7 @@ classdef VideoEncoder < GUIs.base
 
         function showControls(obj)
             for i=1:length(obj.videoPlayers)
-                if obj.videoPlayers{i}.zoomstate ~= 0
+                if obj.videoPlayers{i}.zoomstate ~= 0 && ~strcmp(obj.videoPlayers{i}.type, 'residualmatrixdata')
                     return;
                 end
             end
@@ -246,10 +300,31 @@ classdef VideoEncoder < GUIs.base
             obj.outputStatsToPlot = [];
         end
 
+        function changeVideoInput(obj, source)
+            obj.stopVideo();
+            switch(get(source, 'Value'))
+                case 1
+                    obj.videoEncoder = obj.videoEncoders{1};
+                case 2
+                    obj.videoEncoder = obj.videoEncoders{2};
+                case 3
+                    obj.videoEncoder = obj.videoEncoders{3}; 
+            end
+
+            % This way of organising is a mess, IDs created in order of
+            % initial call but here assumed in specific order
+            obj.setVideoPlayer(1, 'input', obj.videoEncoder.imageMatrix);
+            obj.setVideoPlayer(2, 'output', obj.videoEncoder.reconstructedVideo);
+            obj.setVideoPlayer(3,'residual', obj.videoEncoder.predictionErrorFrame);
+            obj.setVideoPlayer(4,'reconstructedresidual', obj.videoEncoder.reconstructedPredictionErrorFrame);
+            obj.setVideoPlayer(5,'motionvectors', obj.videoEncoder.reconstructedVideo);
+
+        end
+
         function playVideos(obj)
             % update frame by frame, on a timer callback?
             if isempty(obj.playTimer)
-                obj.playTimer = timer('Period', 1.0/obj.videoEncoder.frameRate,'ExecutionMode', 'fixedspacing', 'TimerFcn', @(x,y)obj.showNextFrame());
+                obj.playTimer = timer('Period', 1.0/obj.videoEncoder.frameRate, 'BusyMode', 'drop', 'ExecutionMode', 'fixedspacing', 'TimerFcn', @(x,y)obj.showNextFrame());
                 start(obj.playTimer);
             else
 
@@ -316,33 +391,39 @@ classdef VideoEncoder < GUIs.base
                 end
 
                 % update stats graph
+                % THROWS EXCEPTION IN XLIM LISTENER OF BASELINE FOR
+                % BARSERIES when resizing sometimes. This is a matlab bug i
+                % think.
                 if i == 1
                     stats = obj.videoEncoder.getStatistics();
                     if isempty(obj.outputStatsToPlot)
-                        obj.outputStatsToPlot = zeros(1, size(obj.videoEncoder.imageMatrix, 4));
+                        obj.outputStatsToPlot = zeros(size(obj.videoEncoder.imageMatrix, 4),2);
                     end
                     switch obj.outputPlotType
                         case 1 % combined
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.frameBits;
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,2) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'stack', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 2 % frameBits
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.frameBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.frameBits;
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'grouped', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 3 % motionVectorBits
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.motionVectorBits;
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'grouped', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 4 % total bits
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.bits;
-                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
-                            xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.bits;
+                            cla(obj.videoBitRateAxes);
+                            bar(obj.videoBitRateAxes, obj.outputStatsToPlot ,'grouped', 'Interruptible', 'off', 'ShowBaseLine', 'off');
                         case 5 % psnr
-                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame) = stats{GOPIndex}.frames{frameIndex}.psnr;
-                            plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame));
+                            obj.outputStatsToPlot(obj.videoPlayers{i}.frame,1) = stats{GOPIndex}.frames{frameIndex}.psnr;
+                            plot(obj.videoBitRateAxes, obj.outputStatsToPlot(1:obj.videoPlayers{i}.frame,1));
                             xlim(obj.videoBitRateAxes, [1 size(obj.videoEncoder.imageMatrix, 4)]);
                     end
+                    set(obj.videoBitRateAxes, 'ButtonDownFcn', @(source, evt)(obj.graphClick(source)));
+                    set(obj.videoBitRateAxes, 'Interruptible', 'off');
                 end
             end
         end
@@ -400,10 +481,14 @@ classdef VideoEncoder < GUIs.base
         function reloadVideo(obj, source)
             obj.stopVideo();
             disp('This is either the first time you are running the demo and the demo cache must be created, or you have requested a video recode.');
-            obj.videoEncoder = Video.encoder('examples/imseq/vid:0000:0024:.jpg');
-            obj.videoEncoder.encode('gop', 'ipppp', 'verbose', true, 'Quality', 80, 'BlockMatchingSearchDistance', 8, 'BlockMatching', 'DSA');
-            ve = obj.videoEncoder;
-            save('cachedVideo.mat', 've');
+            obj.videoEncoders{1} = Video.encoder('examples/vidseq/suzie_:001:070:.png');
+            obj.videoEncoders{1}.encode('gop', 'ipppp', 'verbose', true, 'Quality', 80, 'BlockMatchingSearchDistance', 8, 'BlockMatching', 'DSA');
+            obj.videoEncoders{2} = Video.encoder('examples/vidseq/foreman_:001:070:.png');
+            obj.videoEncoders{2}.encode('gop', 'ipppp', 'verbose', true, 'Quality', 50, 'BlockMatchingSearchDistance', 8, 'BlockMatching', 'DSA');
+            obj.videoEncoders{3} = Video.encoder('examples/vidseq/carphone_:001:070:.png');
+            obj.videoEncoders{3}.encode('gop', 'ippppppppp', 'verbose', true, 'Quality', 80, 'BlockMatchingSearchDistance', 8, 'BlockMatching', 'DSA');
+            ve = obj.videoEncoders;
+            save('cachedVideos.mat', 've');
         end
 
         function changeScreenMode(obj, source)

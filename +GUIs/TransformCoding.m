@@ -1,15 +1,26 @@
 classdef TransformCoding < GUIs.base
-%TRANSFORMWINDOW Summary of this class goes here
-%   Detailed explanation goes here
+%TRANSFORMCODING An interactive block diagram of the JPEG DCT transform coding process
 %
 %   +GUIs/TransformCoding.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%   HELP INFO
+%   In this demo the user can enable or disable basis functions of the DCT
+%   by clicking on the image of the basis in the grid in the center of the
+%   screen. The output will automatically change to show a reconstruction
+%   with the given bases. The quantisation of the coefficients is
+%   controlled by the central quality slider. Clicking on the input image
+%   will select an 8x8 block and show in the bottom half of the screen the
+%   intensity pixel values, their shifted counterparts, the associated DCT
+%   raw coefficients, quantised coefficients, dequantised coefficients,
+%   reconstructed shifted values and the final reconstructed block.
+%
+%   Start a new screen by calling the class constructor:
+%       `GUIs.TransformCoding`
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
+
 
     properties
 
@@ -73,11 +84,11 @@ classdef TransformCoding < GUIs.base
             obj.bases = arrayfun(@(x,y)(TransformCoding.createBasisImage(x,y)), X(:), Y(:), 'UniformOutput', false);
 
             % Create panel for basis
-            obj.createTextElement([0.36 0.93 0.24 0.06], 'Click to enable or disable a particular DCT basis function:');
+            obj.createTextElement([0.4 0.96 0.24 0.03], 'Click to select DCT bases:', 10, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
             obj.hBasesPanel = uipanel('Parent', obj.hExternalPanel, ...
                                     'BackgroundColor', 'white', ...
                                     'Units', 'Normalized', ...
-                                    'Position', [0.4 0.59 0.34 0.34], ...
+                                    'Position', [0.4 0.62 0.34 0.34], ...
                                     'ResizeFcn', @(src, evt)(obj.resizeBasesPanel()));
 
             % Create toggle buttons
@@ -135,7 +146,11 @@ classdef TransformCoding < GUIs.base
 
             linkaxes([obj.hInputImageAxes obj.hOutputImageAxes]);
 
+            obj.changeInput(obj.hInputImageSelect);
+
             obj.updateAxes();
+
+            set(obj.hButtonAdvancedMode, 'Enable', 'off');
         end
 
         function imageClick(obj, imageHandle)
