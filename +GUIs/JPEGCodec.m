@@ -1,6 +1,23 @@
 classdef JPEGCodec < GUIs.base
-%JPEGCODEC Summary of this class goes here
-%   Detailed explanation goes here
+%JPEGCODEC An interactive block diagram of a JPEG codec
+%
+%   +GUIs/JPEGCodec.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Shows the block diagram of a JPEG encoder and decoder. The user can
+%   select an input image and a JPEG Quality factor and a JPEG
+%   encode/decode occurs. The output plus relavent statistics are then
+%   shown.
+%   Note: this demo creates a MAT file 'JPEGcache.mat' in the root project
+%   directory in which an encoder/decoder results are stored for quick
+%   future access.
+%
+%   Start a new screen by calling the class constructor:
+%       `GUIs.JPEGCodec`
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties
         encoderInstance

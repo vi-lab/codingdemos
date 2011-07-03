@@ -1,6 +1,30 @@
 classdef VideoEncoder < GUIs.base
-%VIDEOENCODER Summary of this class goes here
-%   Detailed explanation goes here
+%VIDEOENCODER A generic motion compensated video coder demo
+%
+%   +GUIs/VideoEncoder.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   This demo shows the block diagram for a generic motion compensated
+%   video coder and shows outputs of the encoding process including, the
+%   residual frame both before and after coding, the motion vectors for
+%   each macroblock and the input and final reconstructed output image. A
+%   graph also displays statistics such as bits per frame for both residual
+%   data and motion vectors and PSNR per frame. A large text banner
+%   displays the type of frame (I or P).
+%   Note: outputs can be zoomed by clicking on them. Click again to restore
+%   to original size.
+%
+%   Note: Due to the way MATLAB handles ordering of UI elements text
+%   elements are always higher than figures, regardless of the ordering
+%   specified for the figure. Therefore when figures are zoomed the text
+%   elements on the page are temporarily disabled.
+%
+%   Start a new screen by calling the class constructor:
+%       `GUIs.VideoEncoder`
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties
         videoEncoders

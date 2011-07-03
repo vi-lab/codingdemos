@@ -1,6 +1,21 @@
 classdef Correlation < GUIs.base
-%CORRELATION Summary of this class goes here
-%   Detailed explanation goes here
+%CORRELATION Screen designed to demostrate spatial & temporal redundancy
+%
+%   +GUIs/Correlation.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   The following screen demostrates the spatial and temporal redundancy
+%   by allowing the user to explore the correlation between spatially
+%   adjacent and temporally adjacent pixels for images and videos and
+%   random data. Click on the input image or video to select the row or
+%   pixel being explored.
+%
+%   Start a new screen by calling the class constructor:
+%       `GUIs.Correlation`
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
     properties
         hMotionCorrelationPanel

@@ -1,7 +1,26 @@
-%function [ reconstruction, quiverdata ] = reconstructFrame( motionVectors, predictionErrorStruct, referenceFrameStruct, blockMatching )
 function [ reconstruction ] = reconstructFrame( motionVectors, predictionErrorStruct, referenceFrameStruct, blockMatching )
-%RECONSTRUCTFRAME Summary of this function goes here
-%   Detailed explanation goes here
+%RECONSTRUCTFRAME Recreate a frame given a residual, motion vectors and reference frame
+%
+%   +MotionEstimation/reconstructFrame.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%   Reconstructs a frame given a residual frame structure, a referene frame
+%   structure and a matrix of motion vectors for each macro block.
+%
+%   Parameters:
+%   * motionVectors: a matrix of motion vectors where each row represents
+%   a motion vector for each block in row order.
+%   * predictionErrorStruct: the reference error structure
+%   * referenceFrameStruct: the reference image structure
+%   * blockMatching: a structure of block matching parameters
+%
+%   Return value:
+%   * reconstruction: the reconstructed frame
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
+
 pred = double(Subsampling.subsampledToYCbCrImage(predictionErrorStruct))*2-255;
 ref = double(Subsampling.subsampledToYCbCrImage(referenceFrameStruct));
 

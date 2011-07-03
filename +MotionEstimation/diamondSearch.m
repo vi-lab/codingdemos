@@ -1,7 +1,17 @@
-function [motionVectors predictionError] = diamondSearch(inputImageMatrix, referenceFrameMatrix, blockMatching)
-%DIAMONDSEARCH Summary of this function goes here
-%   Detailed explanation goes here
+%function [motionVectors predictionError] = diamondSearch(inputImageMatrix, referenceFrameMatrix, blockMatching)
+function [motionVectors predictionError notABlock continueBlock x y xref yref] = diamondSearch(inputImageMatrix, referenceFrameMatrix, blockMatching, currentBlockIndex, currentReferenceIndex)
+%DIAMONDSEARCH An implementation of the diamond search block matching algorithm
+%
+%   +MotionEstimation/diamondSearch.m
+%   Part of 'MATLAB Image & Video Compression Demos'
+%
+%
+%
+%   Licensed under the 3-clause BSD license, see 'License.m'
+%   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
+%   All rights reserved.
 
+notABlock = false;
 bs = blockMatching.blockSize;
 ms = blockMatching.maximumSearchDistance;
 matchFunction = blockMatching.matchFunction;
@@ -26,6 +36,33 @@ nX = numel(X);
 
 %nIb = numel(Ib);
 %nIs = numel(Is);
+
+
+if exist('currentBlockIndex', 'var')
+    singleBlockMode = true;
+else
+    singleBlockMode = false;
+end
+
+%{
+if currentReferenceIndex == nI
+    continueBlock = false;
+else
+    continueBlock = true;
+end
+
+if singleBlockMode
+    startBI = currentBlockIndex;
+    endBI = currentBlockIndex;
+    startRI = currentReferenceIndex;
+    endRI = currentReferenceIndex;
+else
+	startBI = 1;
+    endBI = nX;
+	startRI = 1;
+    endRI = nI;
+end
+%}
 
 for blockIndex = 1:nX
     cache = cell(inputH,inputW);
