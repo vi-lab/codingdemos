@@ -1,4 +1,4 @@
-function [motionVectors predictionError notABlock continueBlock x y xref yref] = fullSearch(inputImageMatrix, referenceFrameMatrix, blockMatching, currentBlockIndex, currentReferenceIndex)
+function [motionVectors predictionError currentBlockData] = fullSearch(inputImageMatrix, referenceFrameMatrix, blockMatching, currentBlockIndex)
 %FULLSEARCH An implementation of the full search block matching algorithm
 %
 %   +MotionEstimation/fullSearch.m
@@ -10,7 +10,7 @@ function [motionVectors predictionError notABlock continueBlock x y xref yref] =
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
 %   All rights reserved.
 
-notABlock = false;
+currentBlockData = [];
 bs = blockMatching.blockSize;
 ms = blockMatching.maximumSearchDistance;
 matchFunction = blockMatching.matchFunction;
@@ -20,7 +20,7 @@ predictionError = zeros(size(inputImageMatrix));
 inputW = floor(size(inputImageMatrix,2)/bs)*bs;
 inputH = floor(size(inputImageMatrix,1)/bs)*bs;
 
-motionVectors = zeros(inputW/bs, inputH/bs, 3);
+motionVectors = zeros(inputW/bs, inputH/bs, 5);
 %2.8s direct use of SAD, 4.7 with call to user defined function pointer, so
 %half the speed :(
 
@@ -28,12 +28,6 @@ motionVectors = zeros(inputW/bs, inputH/bs, 3);
 [I, J] = meshgrid(1:blockMatching.maximumSearchDistance*2-1, 1:blockMatching.maximumSearchDistance*2-1);
 nX = numel(X);
 nI = numel(I);
-
-if currentReferenceIndex == nI
-    continueBlock = false;
-else
-    continueBlock = true;
-end
 
 if exist('currentBlockIndex', 'var')
     singleBlockMode = true;
@@ -44,14 +38,11 @@ end
 if singleBlockMode
     startBI = currentBlockIndex;
     endBI = currentBlockIndex;
-    startRI = currentReferenceIndex;
-    endRI = currentReferenceIndex;
 else
 	startBI = 1;
     endBI = nX;
-	startRI = 1;
-    endRI = nI;
 end
+
 
 for blockIndex = startBI:endBI
     x = X(blockIndex);
@@ -59,28 +50,39 @@ for blockIndex = startBI:endBI
     bx = ceil(x/bs);
     by = ceil(y/bs);
     if singleBlockMode
-        motionVectors(1,1,:) = [0 0 10000000];
+        motionVectors(1,1,:) = [0 0 10000000 -1 -1];
     else
-        motionVectors(bx,by,:) = [0 0 10000000];
+        motionVectors(bx,by,:) = [0 0 10000000 -1 -1];
     end
     block1 = inputImageMatrix(y:y+bs-1,x:x+bs-1,:);
-    for refBlockIndex = startRI:endRI
+    for refBlockIndex = 1:nI
         i = I(refBlockIndex);
         j = J(refBlockIndex);
         xref = x + (i - ms);
         yref = y + (j - ms);
         if xref < 1 || yref < 1 || xref > inputW-bs || yref > inputH-bs
-            notABlock = true;
             continue;
         end
         block2 = referenceFrameMatrix(yref:yref+bs-1,xref:xref+bs-1,:);
         [matchError errorSurface] = matchFunction(block1, block2);
         if (~singleBlockMode && (matchError < motionVectors(bx,by,3)))
-            motionVectors(bx,by,:) = [(i - ms), (j - ms), matchError];
+            motionVectors(bx,by,:) = [(i - ms), (j - ms), matchError, x, y];
             predictionError(y:y+bs-1,x:x+bs-1,:) = errorSurface;
-        elseif singleBlockMode
-            motionVectors(1,1,:) = [(i - ms), (j - ms), matchError];
+        elseif (singleBlockMode && (matchError < motionVectors(1,1,3)))
+            motionVectors(1,1,:) = [(i - ms), (j - ms), matchError, x, y];
             predictionError(1:1+bs-1,1:1+bs-1,:) = errorSurface;
+        end
+
+        if singleBlockMode
+            currentBlockData{refBlockIndex}.step = 0;
+            currentBlockData{refBlockIndex}.blockx = x;
+            currentBlockData{refBlockIndex}.blocky = y;
+            currentBlockData{refBlockIndex}.i = i - ms;
+            currentBlockData{refBlockIndex}.j = j - ms;
+            currentBlockData{refBlockIndex}.xref = xref;
+            currentBlockData{refBlockIndex}.yref = yref;
+            currentBlockData{refBlockIndex}.matchError = matchError;
+            currentBlockData{refBlockIndex}.errorSurface = errorSurface;
         end
     end
     % get best for this MB
@@ -88,11 +90,7 @@ for blockIndex = startBI:endBI
         disp(['Best match for MB (' num2str(bx) ',' num2str(by) ') is at (' num2str(motionVectors(bx,by,1)) ',' num2str(motionVectors(bx,by,2)) ') with error ' num2str(motionVectors(bx,by,3))]); 
     end
     if blockMatching.verbose && singleBlockMode 
-        if notABlock 
-            disp(['Current block: ' num2str(currentBlockIndex) ' reference: ' num2str(currentReferenceIndex) ' is outside image']); 
-        else
-            disp(['Current block: ' num2str(currentBlockIndex) ' reference: ' num2str(currentReferenceIndex) ' is at (' num2str(motionVectors(1,1,1)) ',' num2str(motionVectors(1,1,2)) ') with error ' num2str(motionVectors(1,1,3)) ', should continue : ' num2str(continueBlock)]);
-        end
+        disp(['Current block: ' num2str(currentBlockIndex) ' is at (' num2str(motionVectors(1,1,1)) ',' num2str(motionVectors(1,1,2)) ') with error ' num2str(motionVectors(1,1,3))]);
     end
 end
 

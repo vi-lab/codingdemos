@@ -27,12 +27,16 @@ classdef BlockMatching < GUIs.base
         hFrameNumberCombo
         hReferenceFrameNumberCombo
         hVerboseCheck
+        hShowGridCheck
         hSearchTypeCombo
         hSearchDistanceCombo
         hSearchBlockSizeCombo
         hDifferenceTypeCombo
+        hDifferenceTypeComboText
         hResultsTable
+        hBlockResultText
 
+        showGrid = 1;
         playTimer
 
         hInputSelectedBlockRectangle
@@ -47,18 +51,18 @@ classdef BlockMatching < GUIs.base
         searchAlgorithm
 
         currentBlock
-        currentCoords
-        currentCompareBlock
-        currentReferenceX
-        currentReferenceY
-        currentMotionVectors
-        currentBlockResiduals
+        currentSearchData
+
+        animationStep = 0;
+        animationRects
+        
+        predictionError
         motionVectors
         residual
         selectedBlockCoords
 
         referenceNumber = 1;
-        frameNumber = 2;
+        frameNumber = 10;
     end
 
     methods
@@ -71,7 +75,7 @@ classdef BlockMatching < GUIs.base
                 obj.videoEncoders = ve;
             end
 
-            obj.createInputVideoSelectComboBoxAndText([0.01 0.96 0.25 0.03], [0.0 0.93 0.25 0.03]);
+            obj.createInputVideoSelectComboBoxAndText([0.01 0.96 0.1 0.03], [0.0 0.93 0.25 0.03]);
 
             obj.createTextElement([0.01 0.895 0.11 0.03], 'Frame No.', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
             obj.hFrameNumberCombo = uicontrol('Style', 'popupmenu', ...
@@ -92,14 +96,24 @@ classdef BlockMatching < GUIs.base
                                         'String', {'1'},...
                                         'Callback', @(source, event)(obj.changeFrameNumber(source)));
             obj.hVerboseCheck = uicontrol('Style', 'checkbox', ...
-                                    'Parent', obj.hExternalPanel, ...
-                                    'FontSize', 9, ...
-                                    'FontName', 'Helvetica',...
-                                    'Units', 'Normalized', ...
-                                    'Position',[0.37 0.96 0.3 0.03],...
-                                    'String', 'Verbose output? (on MATLAB console)',...
-                                    'Value', 0,...
-                                    'Callback', @(source, event)(obj.changeSettings(source)));
+                                        'Parent', obj.hExternalPanel, ...
+                                        'FontSize', 9, ...
+                                        'FontName', 'Helvetica',...
+                                        'Units', 'Normalized', ...
+                                        'Position',[0.37 0.96 0.3 0.03],...
+                                        'String', 'Verbose output? (on MATLAB console)',...
+                                        'Value', 0,...
+                                        'Visible','off',...
+                                        'Callback', @(source, event)(obj.changeSettings(source)));
+            obj.hShowGridCheck = uicontrol('Style', 'checkbox', ...
+                                        'Parent', obj.hExternalPanel, ...
+                                        'FontSize', 9, ...
+                                        'FontName', 'Helvetica',...
+                                        'Units', 'Normalized', ...
+                                        'Position',[0.15 0.96 0.1 0.03],...
+                                        'String', 'Show Grid?',...
+                                        'Value', 1,...
+                                        'Callback', @(source, event)(obj.changeSettings(source)));
             obj.createTextElement([0.27 0.96 0.1 0.03], 'Search Type', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
             obj.hSearchTypeCombo = uicontrol('Style', 'popupmenu', ...
                                         'Parent', obj.hExternalPanel, ...
@@ -108,9 +122,9 @@ classdef BlockMatching < GUIs.base
                                         'Units', 'Normalized', ...
                                         'Position',[0.26 0.93 0.3 0.03],...
                                         'String', {'Full Search (FSA)' 'Diamond Search (DSA)'},...
-                                        'Value', 2,...
+                                        'Value', 1,...
                                         'Callback', @(source, event)(obj.changeSettings(source)));
-            obj.createTextElement([0.27 0.895 0.1 0.03], 'Difference calculation', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
+            obj.hDifferenceTypeComboText = obj.createTextElement([0.27 0.895 0.1 0.03], 'Difference calculation', 9, false, 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
             obj.hDifferenceTypeCombo = uicontrol('Style', 'popupmenu', ...
                                         'Parent', obj.hExternalPanel, ...
                                         'FontSize', 11, ...
@@ -119,6 +133,7 @@ classdef BlockMatching < GUIs.base
                                         'Position',[0.26 0.87 0.3 0.03],...
                                         'String', {'SAD: Sum of Absolute Differences' 'MAD: Mean of Absolute Differences' 'SSD: Sum of Squared Differences' 'MSD: Mean of Squared Differences'},...
                                         'Value', 2, ...
+                                        'Visible', 'off',...
                                         'Callback', @(source, event)(obj.changeSettings(source)));
             obj.createTextElement([0.61 0.96 0.1 0.03], 'Search Distance', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
             obj.hSearchDistanceCombo = uicontrol('Style', 'popupmenu', ...
@@ -127,8 +142,8 @@ classdef BlockMatching < GUIs.base
                                         'FontName', 'Helvetica',...
                                         'Units', 'Normalized', ...
                                         'Position',[0.60 0.93 0.1 0.03],...
-                                        'String', {'8' '4' '2'},...
-                                        'Value', 2,...
+                                        'String', {'32' '24' '16' '12' '8' '4' '2'},...
+                                        'Value', 5,...
                                         'Callback', @(source, event)(obj.changeSettings(source)));
             obj.createTextElement([0.71 0.96 0.1 0.03], 'Block Size', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
             obj.hSearchBlockSizeCombo = uicontrol('Style', 'popupmenu', ...
@@ -149,7 +164,6 @@ classdef BlockMatching < GUIs.base
                                     'Units', 'Normalized', ...
                                     'Position',[0.81 0.91 0.08 0.08],...
                                     'String', 'Free Run',...
-                                    'Value', 1,...
                                     'Enable', 'off',...
                                     'Callback', @(source, event)(obj.toggleFreerun(source)));
             obj.hStepButton = uicontrol('Style', 'pushbutton', ...
@@ -159,7 +173,6 @@ classdef BlockMatching < GUIs.base
                                     'Units', 'Normalized', ...
                                     'Position',[0.89 0.91 0.08 0.08],...
                                     'String', 'Step',...
-                                    'Value', 1,...
                                     'Enable', 'off',...
                                     'Callback', @(source, event)(obj.step()));
 
@@ -178,10 +191,12 @@ classdef BlockMatching < GUIs.base
             obj.hTargetBlock = obj.createAxesForImage([.75 .58 .12 .15]);
             obj.createTextElement([0.66 0.38 0.08 0.15], 'Residual Block', 11, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
             obj.hResidualBlock = obj.createAxesForImage([.75 .41 .12 .15]);
-            obj.hResultText = obj.createTextElement([0.88 0.55 0.11 0.15], '(Result of comparison)', 11, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
+            obj.hResultText = obj.createTextElement([0.88 0.55 0.11 0.15], '(Result of comparison)', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
 
-            obj.createTextElement([0.7 0.32 0.25 0.03], 'Error at each location in search', 10, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
-            obj.hResultsTable = uitable('Data',[1 2; 1 2; 1 2;], ...
+            obj.hBlockResultText = obj.createTextElement([0.7 0.36 0.25 0.04], '(Result)', 12, 'on', 'white', obj.hExternalPanel, 'FontName', 'Helvetica');
+
+            obj.createTextElement([0.7 0.32 0.25 0.03], 'Error at each location in search', 9, 'on', 'white', obj.hExternalPanel, 'FontName', 'helvetica');
+            obj.hResultsTable = uitable('Data',[], ...
                                         'ColumnName', {'Location', 'Error'}, ...
                                         'Parent', obj.hExternalPanel, ...
                                         'Units', 'Normalized', ...
@@ -226,93 +241,119 @@ classdef BlockMatching < GUIs.base
 
             obj.residual = zeros(size(obj.videoEncoder.imageMatrix,1),size(obj.videoEncoder.imageMatrix,2));
 
-          	%obj.hInputImage = Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);
             obj.updateMainAxes();
-            % This way of organising is a mess, IDs created in order of
-            % initial call but here assumed in specific order
-            %{
-            obj.setVideoPlayer(1, 'input', obj.videoEncoder.imageMatrix);
-            obj.setVideoPlayer(2, 'output', obj.videoEncoder.reconstructedVideo);
-            obj.setVideoPlayer(3,'residual', obj.videoEncoder.predictionErrorFrame);
-            obj.setVideoPlayer(4,'reconstructedresidual', obj.videoEncoder.reconstructedPredictionErrorFrame);
-            obj.setVideoPlayer(5,'motionvectors', obj.videoEncoder.reconstructedVideo);
-            %}
         end
 
         function updateMainAxes(obj)
-            obj.hInputImage = imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber)), 'Parent', obj.hInputImageAxes);
+            im = ycbcr2rgb(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber));
+            if obj.showGrid
+                bs = obj.blockMatchingStruct.blockSize;
+                [X, Y] = meshgrid(1:bs:size(im,2), 1:bs:size(im,1));
+                for i=1:numel(X)
+                    im(Y(i):Y(i)+bs-1,X(i),:) = 0;
+                    im(Y(i),X(i):X(i)+bs-1,:) = 0;
+                end
+            end
+            obj.hInputImage = imshow(im, 'Parent', obj.hInputImageAxes);
             set(obj.hInputImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
-            
-            hold(obj.hInputImageAxes, 'on');
 
-            obj.hRefImage = imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(:,:,:,obj.referenceNumber)), 'Parent', obj.hOutputImageAxes);
+            ref = ycbcr2rgb(obj.videoEncoder.imageMatrix(:,:,:,obj.referenceNumber));
+            if obj.showGrid
+                bs = obj.blockMatchingStruct.blockSize;
+                [X, Y] = meshgrid(1:bs:size(ref,2), 1:bs:size(ref,1));
+                for i=1:numel(X)
+                    ref(Y(i):Y(i)+bs-1,X(i),:) = 0;
+                    ref(Y(i),X(i):X(i)+bs-1,:) = 0;
+                end
+            end
+            obj.hRefImage = imshow(ref, 'Parent', obj.hOutputImageAxes);
             set(obj.hRefImage, 'ButtonDownFcn', @(src, evt)(obj.imageClick(src)));
 
-            hold(obj.hOutputImageAxes, 'on');
         end
-
+%{
         function updateReferenceRectsAxes(obj)
             if ~isempty(obj.selectedBlockCoords)
                 obj.hInputSelectedBlockRectangle = rectangle('Parent', obj.hOutputImageAxes, 'Position', obj.selectedBlockCoords, 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
             end
-            if ~isempty(obj.currentReferenceY)
-                rectangle('Parent', obj.hOutputImageAxes, 'Position', [obj.currentReferenceX obj.currentReferenceY obj.blockMatchingStruct.blockSize obj.blockMatchingStruct.blockSize] , 'EdgeColor', [.5 .5 .9], 'LineWidth', 1.5);
-            end
+            %if ~isempty(obj.currentReferenceY)
+            %    rectangle('Parent', obj.hOutputImageAxes, 'Position', [obj.currentReferenceX obj.currentReferenceY obj.blockMatchingStruct.blockSize obj.blockMatchingStruct.blockSize] , 'EdgeColor', [.5 .5 .9], 'LineWidth', 1.5);
+            %end
         end
-
+%}
         function updateMVView(obj)
-            obj.hMVImage = imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(:,:,:,obj.referenceNumber)), 'Parent', obj.hMotionVectorsImageAxes);
-            
+            ref = ycbcr2rgb(obj.videoEncoder.imageMatrix(:,:,:,obj.referenceNumber));
+            if obj.showGrid
+                bs = obj.blockMatchingStruct.blockSize;
+                [X, Y] = meshgrid(1:bs:size(ref,2), 1:bs:size(ref,1));
+                for i=1:numel(X)
+                    ref(Y(i):Y(i)+bs-1,X(i),:) = 0;
+                    ref(Y(i),X(i):X(i)+bs-1,:) = 0;
+                end
+            end
+            obj.hMVImage = imshow(ref, 'Parent', obj.hMotionVectorsImageAxes);
+
+            hold(obj.hMotionVectorsImageAxes, 'on');
+            hold(obj.hOutputImageAxes, 'on');
+            x = [];y = [];u = [];v = [];
             if ~isempty(obj.motionVectors)
                 for i=1:length(obj.motionVectors)
                     if ~isempty(obj.motionVectors{i})
-                        obj.motionVectors{i}
+                        x = [x obj.motionVectors{i}(4)];
+                        y = [y obj.motionVectors{i}(5)];
+                        u = [u obj.motionVectors{i}(1)];
+                        v = [v obj.motionVectors{i}(2)];
                     end
                 end
             end
+
+            quiver(obj.hMotionVectorsImageAxes, x, y, u, v, 0, 'k');
+            quiver(obj.hOutputImageAxes, x, y, u, v, 0, 'k');
+
+            hold(obj.hMotionVectorsImageAxes, 'off');
+            hold(obj.hOutputImageAxes, 'off');
 
             if ~isempty(obj.residual)
                 imagesc(obj.residual, 'Parent', obj.hResidualImageAxes);
             end
         end
-        function updateBlockView(obj)
-            if ~isempty(obj.selectedBlockCoords)
-                imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(obj.selectedBlockCoords(2):obj.selectedBlockCoords(2)+obj.selectedBlockCoords(4),obj.selectedBlockCoords(1):obj.selectedBlockCoords(1)+obj.selectedBlockCoords(3),:,obj.frameNumber)), 'Parent', obj.hCurrentBlock);
-            end
-            if ~isempty(obj.currentReferenceX)
-                imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(obj.currentReferenceY:obj.currentReferenceY+obj.blockMatchingStruct.blockSize-1,...
-                    obj.currentReferenceX:obj.currentReferenceX+obj.blockMatchingStruct.blockSize-1,:,obj.referenceNumber)), 'Parent', obj.hTargetBlock);
-                %imshow(obj.residual(obj.currentReferenceY:obj.currentReferenceY+obj.blockMatchingStruct.blockSize-1,...
-                %    obj.currentReferenceX:obj.currentReferenceX+obj.blockM
-                %    atchingStruct.blockSize-1), 'Parent', obj.hResidualBlock);
-                imagesc(obj.currentBlockResiduals{obj.currentCompareBlock-1}, 'Parent', obj.hResidualBlock);
-            end
-        end
 
         function imageClick(obj, imageHandle)
             % handle input / output image clicks
-            %if imageHandle == obj.hInputImage
+            if imageHandle == obj.hInputImage
                 selectedPoint = get(obj.hInputImageAxes, 'CurrentPoint');
-                bs = obj.blockMatchingStruct.blockSize;
-                bx = (floor((selectedPoint(1,1)-1) / bs)*bs) + 1;
-                by = (floor((selectedPoint(1,2)-1) / bs)*bs) + 1;
-                obj.selectedBlockCoords = [bx by bs bs];
+            else
+                selectedPoint = get(obj.hOutputImageAxes, 'CurrentPoint');
+            end
 
-                obj.hInputSelectedBlockRectangle = rectangle('Parent', obj.hInputImageAxes, 'Position', obj.selectedBlockCoords, 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
-                % convert into linear block index
-                %obj.currentBlock = ceil(bx/bs) + floor(by/bs)*floor(size(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber), 2)/bs);
-                obj.currentBlock = ceil(by/bs) + floor(bx/bs)*floor(size(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber), 1)/bs);
-                obj.currentCompareBlock = 1;
-                obj.currentMotionVectors = [];
-                set(obj.hPlayPauseButton, 'Enable', 'on');
-                set(obj.hStepButton, 'Enable', 'on');
+            obj.updateMainAxes();
+            bs = obj.blockMatchingStruct.blockSize;
+            bx = (floor((selectedPoint(1,1)-1) / bs)*bs) + 1;
+            by = (floor((selectedPoint(1,2)-1) / bs)*bs) + 1;
+            obj.selectedBlockCoords = [bx by bs bs];
 
-                obj.updateMainAxes();
-            %end
+            obj.hInputSelectedBlockRectangle = rectangle('Parent', obj.hInputImageAxes, 'Position', obj.selectedBlockCoords, 'EdgeColor', [0 0 0], 'LineWidth', 1.5);
+            % convert into linear block index
+            obj.currentBlock = ceil(by/bs) + floor(bx/bs)*floor(size(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber), 1)/bs);
+
+            obj.doBlock();
+
+            set(obj.hPlayPauseButton, 'Enable', 'on');
+            set(obj.hStepButton, 'Enable', 'on');
+
+            obj.updateTable();
+            obj.updateReferenceRectsAxes();
         end
 
         function changeSettings(obj, source)
             switch source
+                case obj.hShowGridCheck
+                    if get(obj.hShowGridCheck, 'Value') == 1
+                        obj.showGrid = true;
+                    else
+                        obj.showGrid = false;
+                    end
+                    obj.updateMainAxes();
+
                 case obj.hSearchTypeCombo
                     if get(obj.hSearchTypeCombo, 'Value') == 1
                         obj.blockMatchingStruct.algorithm = 'FSA';
@@ -336,14 +377,12 @@ classdef BlockMatching < GUIs.base
                 case obj.hSearchDistanceCombo
                     strings = get(obj.hSearchDistanceCombo, 'String');
                     s = strings{get(obj.hSearchDistanceCombo, 'Value')};
-                    obj.reset();
                     obj.blockMatchingStruct.maximumSearchDistance = str2double(s);
 
                 case obj.hSearchBlockSizeCombo
                     strings = get(obj.hSearchBlockSizeCombo, 'String');
                     s = strings{get(obj.hSearchBlockSizeCombo, 'Value')};
                     obj.blockMatchingStruct.blockSize = str2double(s);
-                    obj.reset();
 
                 case obj.hDifferenceTypeCombo
                     switch get(obj.hDifferenceTypeCombo, 'Value')
@@ -368,7 +407,7 @@ classdef BlockMatching < GUIs.base
                     end
             end
         end
-        
+
         function changeFrameNumber(obj, source)
             if source == obj.hReferenceFrameNumberCombo
                 obj.referenceNumber = get(obj.hReferenceFrameNumberCombo, 'Value');
@@ -377,7 +416,8 @@ classdef BlockMatching < GUIs.base
             end
             obj.updateMainAxes();
         end
-        
+
+        %{
         function reset(obj)
             obj.motionVectors = [];
         	obj.selectedBlockCoords = [];
@@ -388,6 +428,7 @@ classdef BlockMatching < GUIs.base
             set(obj.hStepButton, 'Enable', 'off');
             obj.updateMainAxes();
         end
+        %}
 
         function toggleFreerun(obj, source)
             if isempty(obj.playTimer)
@@ -404,59 +445,52 @@ classdef BlockMatching < GUIs.base
                 obj.playTimer = [];
             end
         end
-
+        
         function step(obj)
-            % process next block
-            cont = true;
-            bs = obj.blockMatchingStruct.blockSize;
-            while cont
-                [motionVector predictionError invalidBlock continueBlock blockX blockY refX refY] = obj.searchAlgorithm(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber), obj.videoEncoder.imageMatrix(:,:,:,obj.referenceNumber), obj.blockMatchingStruct, obj.currentBlock, obj.currentCompareBlock);
-                if ~invalidBlock
-                    obj.currentReferenceX = refX;
-                    obj.currentReferenceY = refY;
-                    %obj.residual(obj.currentReferenceY:obj.currentReferenceY+bs-1,obj.currentReferenceX:obj.currentReferenceX+bs-1,:) = predictionError(1:bs,1:bs,:);
-                    obj.currentCoords{obj.currentCompareBlock} = [refX refY];
-                    obj.currentBlockResiduals{obj.currentCompareBlock} = sum(predictionError(1:bs,1:bs,:),3);
-                    obj.currentMotionVectors{obj.currentCompareBlock} = motionVector(1,1,:);
-                    set(obj.hResultText, 'String', ['Vector (' num2str(motionVector(1,1,1)) ',' num2str(motionVector(1,1,2)) ') error: ' num2str(motionVector(1,1,3))]);
-                    cont = false;
-                end
-                if continueBlock
-                    obj.currentCompareBlock = obj.currentCompareBlock + 1;
-                else
-                    obj.stopFreerun();
-                    set(obj.hPlayPauseButton, 'Enable', 'off');
-                    set(obj.hStepButton, 'Enable', 'off');
-                    cont = false;
-                    
-                    % Select best vector for currentBlock
-                    best = -1;
-                    err = 100000000;
-                    for i=1:length(obj.currentMotionVectors)
-                        if obj.currentMotionVectors{i}(3) < err
-                            err = obj.currentMotionVectors{i}(3);
-                            best = i;
-                        end
-                    end
-                    obj.motionVectors{obj.currentBlock} = obj.currentMotionVectors{best};
-                    obj.residual(obj.currentCoords{best}(2):obj.currentCoords{best}(2)+bs-1, obj.currentCoords{best}(1):obj.currentCoords{best}(1)+bs-1) = obj.currentBlockResiduals{best};
-                    set(obj.hResultText, 'String', ['Best Vector (' num2str(obj.motionVectors{obj.currentBlock}(1)) ',' num2str(obj.motionVectors{obj.currentBlock}(2)) ') error: ' num2str(obj.motionVectors{obj.currentBlock}(3))]);
-                    obj.updateMVView();
-                    obj.updateTable();
-                end
+            obj.animationStep = obj.animationStep + 1;
+            if (obj.animationStep > length(obj.currentSearchData))
+                set(obj.hPlayPauseButton, 'Value', 0);
+                obj.stopFreerun();
+                set(obj.hPlayPauseButton, 'Enable', 'off');
+                set(obj.hStepButton, 'Enable', 'off');
+            else
+                bs = obj.blockMatchingStruct.blockSize;
+                x = obj.currentSearchData{obj.animationStep}.blockx;
+                y = obj.currentSearchData{obj.animationStep}.blocky;
+                xref = obj.currentSearchData{obj.animationStep}.xref; 
+                yref = obj.currentSearchData{obj.animationStep}.yref;
+                imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(y:y+bs-1,x:x+bs-1,:,obj.frameNumber)), 'Parent', obj.hCurrentBlock);
+                imshow(ycbcr2rgb(obj.videoEncoder.imageMatrix(yref:yref+bs-1,xref:xref+bs-1,:,obj.referenceNumber)), 'Parent', obj.hTargetBlock);
+                imagesc(sum(obj.currentSearchData{obj.animationStep}.errorSurface, 3), 'Parent', obj.hResidualBlock);
+                obj.animationRects(obj.animationStep) = rectangle('Parent', obj.hOutputImageAxes, 'Position', [xref yref obj.blockMatchingStruct.blockSize obj.blockMatchingStruct.blockSize] , 'EdgeColor', [.6 .6 (obj.currentSearchData{obj.animationStep}.step/obj.currentSearchData{end}.step)], 'LineWidth', 1);
             end
-            %obj.updateMainAxes();
-            obj.updateBlockView();
+        end
+
+        function doBlock(obj)
+            % process next block
+            %cont = true;
+            bs = obj.blockMatchingStruct.blockSize;
+            [motionVector pError obj.currentSearchData] = obj.searchAlgorithm(obj.videoEncoder.imageMatrix(:,:,:,obj.frameNumber), obj.videoEncoder.imageMatrix(:,:,:,obj.referenceNumber), obj.blockMatchingStruct, obj.currentBlock);
+
+            obj.motionVectors{obj.currentBlock} = squeeze(motionVector(1,1,:));
+            x = obj.motionVectors{obj.currentBlock}(4);
+            y = obj.motionVectors{obj.currentBlock}(5);
+            obj.predictionError{obj.currentBlock} = sum(pError(1:bs,1:bs,:),3);
+            obj.residual(y:y+bs-1, x:x+bs-1) = obj.predictionError{obj.currentBlock};
+
+            obj.animationStep = 0;
+
+            obj.updateMVView();
         end
         
         function updateTable(obj)
             data = {};
             cnt = 1;
-            for i=1:length(obj.currentMotionVectors)
-                if ~isempty(obj.currentMotionVectors{i})
-                    data{cnt, 1} = obj.currentMotionVectors{i}(1);
-                    data{cnt, 2} = obj.currentMotionVectors{i}(2);
-                    data{cnt, 3} = obj.currentMotionVectors{i}(3);
+            for i=1:length(obj.currentSearchData)
+                if ~isempty(obj.currentSearchData{i})
+                    data{cnt, 1} = obj.currentSearchData{i}.i;
+                    data{cnt, 2} = obj.currentSearchData{i}.j;
+                    data{cnt, 3} = obj.currentSearchData{i}.matchError;
                     cnt = cnt + 1;
                 end
             end
@@ -475,5 +509,29 @@ classdef BlockMatching < GUIs.base
             save('cachedVideos.mat', 've');
         end
 
+        function handleCloseRequest(obj, source, event)
+            obj.stopFreerun();
+            delete(gcf);
+        end
+
+        function changeScreenMode(obj, source)
+
+            obj.changeScreenMode@GUIs.base(source);
+
+            if strcmp(get(source, 'State'), 'on')
+                % on
+                %set(obj.h, 'Visible', 'on');
+                set(obj.hDifferenceTypeCombo, 'Visible', 'on');
+                set(obj.hDifferenceTypeComboText, 'Visible', 'on');
+                set(obj.hVerboseCheck, 'Visible', 'on');
+            else
+                % off
+                %set(obj.h, 'Visible', 'off');
+                set(obj.hDifferenceTypeCombo, 'Visible', 'off');
+                set(obj.hDifferenceTypeComboText, 'Visible', 'off');
+                set(obj.hVerboseCheck, 'Visible', 'off');
+            end
+            
+        end
     end
 end 
