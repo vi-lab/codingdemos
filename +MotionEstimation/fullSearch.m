@@ -4,7 +4,8 @@ function [motionVectors predictionError currentBlockData] = fullSearch(inputImag
 %   +MotionEstimation/fullSearch.m
 %   Part of 'MATLAB Image & Video Compression Demos'
 %
-%
+%   An implementation of the full search algorithm for block matching
+%   motion estimation.
 %
 %   Licensed under the 3-clause BSD license, see 'License.m'
 %   Copyright (c) 2011, Stephen Ierodiaconou, University of Bristol.
