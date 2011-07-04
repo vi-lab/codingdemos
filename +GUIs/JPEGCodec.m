@@ -9,8 +9,10 @@ classdef JPEGCodec < GUIs.base
 %   encode/decode occurs. The output plus relavent statistics are then
 %   shown.
 %   Note: this demo creates a MAT file 'JPEGcache.mat' in the root project
-%   directory in which an encoder/decoder results are stored for quick
+%   directory in which an encoder results are stored for quick
 %   future access.
+%   Also, since decoding using our MATLAB JPEG decoder is slow for demo
+%   purposes we simply use the reconstruction process of the encoder.
 %
 %   Start a new screen by calling the class constructor:
 %       `GUIs.JPEGCodec`
@@ -21,7 +23,8 @@ classdef JPEGCodec < GUIs.base
 
     properties
         encoderInstance
-        decoderInstance
+        %decoderInstance
+        outputImage
 
         hInputImageAxes
 
@@ -177,8 +180,11 @@ classdef JPEGCodec < GUIs.base
             set(obj.hQuantisationSlider, 'Enable', 'off');
             drawnow;
             obj.encoderInstance = JPEG.encoder(obj.inputMatrix);
-            obj.decoderInstance = JPEG.decoder(obj.encoderInstance.encode('Quality', ceil(get(obj.hQuantisationSlider, 'Value'))));
-            obj.decoderInstance.decode();
+            %obj.decoderInstance = JPEG.decoder(obj.encoderInstance.encode('Quality', ceil(get(obj.hQuantisationSlider, 'Value'))));
+            %obj.decoderInstance.decode();
+            % Decoding is slow, for Demo better to use reconstruction
+            obj.encoderInstance.encode('Quality', ceil(get(obj.hQuantisationSlider, 'Value')), 'DoReconstruction', true);
+            obj.outputImage = obj.encoderInstance.reconstruction;
             set(obj.hBitstreamTextBox, 'String', num2str(obj.encoderInstance.output(1:1000)));
             set(obj.hQuantisationSlider, 'Enable', 'on');
         end
@@ -191,13 +197,15 @@ classdef JPEGCodec < GUIs.base
             set(obj.hInputBitCountText, 'String', ['Input Bit Count: ' num2str(inbits)]);
             set(obj.hOutputBitCountText, 'String', ['Output Bit Count: ' num2str(outbits)]);
             set(obj.hSavingText, 'String', ['Bit Saving: ' num2str(round(((inbits - outbits)/inbits) * 100)) '%']);
-            set(obj.hPSNRText, 'String', ['PSNR of output: ' num2str(Utilities.peakSignalToNoiseRatio(obj.decoderInstance.outputImageMatrix, obj.inputMatrix))]);
+            %set(obj.hPSNRText, 'String', ['PSNR of output: ' num2str(Utilities.peakSignalToNoiseRatio(obj.decoderInstance.outputImageMatrix, obj.inputMatrix))]);
+            set(obj.hPSNRText, 'String', ['PSNR of output: ' num2str(Utilities.peakSignalToNoiseRatio(Subsampling.subsampledToYCbCrImage(obj.outputImage), obj.inputMatrix))]);
             set(obj.hInputSizeText, 'String', [num2str(size(obj.inputMatrix,2)) ' by ' num2str(size(obj.inputMatrix,1)) ' = ' num2str(inpixels) ' pixels']);
             set(obj.hQuantisationSlider, 'Value', obj.encoderInstance.qualityFactor);
             set(obj.hBitstreamTextBox, 'String', num2str(obj.encoderInstance.output(1:1000)));
             set(obj.hQValueText, 'String', ['Q: ' num2str(obj.encoderInstance.qualityFactor)]);
             Subsampling.subsampledImageShow(obj.encoderInstance.imageStruct, 'Parent', obj.hInputImageAxes);
-            Subsampling.subsampledImageShow(obj.decoderInstance.outputImageStruct, 'Parent', obj.hOutputImageAxes);
+            %Subsampling.subsampledImageShow(obj.decoderInstance.outputImageStruct, 'Parent', obj.hOutputImageAxes);
+            Subsampling.subsampledImageShow(obj.outputImage, 'Parent', obj.hOutputImageAxes);
         end
 
         function changeInput(obj, source)
@@ -208,11 +216,13 @@ classdef JPEGCodec < GUIs.base
 
             if value <= length(obj.cache) && ~isempty(obj.cache{value})
                 obj.encoderInstance = obj.cache{value}{1};
-                obj.decoderInstance = obj.cache{value}{2};
+                %obj.decoderInstance = obj.cache{value}{2};
+                obj.outputImage  = obj.cache{value}{2};
             else
                 obj.doEncodeDecode();
                 obj.cache{value}{1} = obj.encoderInstance;
-                obj.cache{value}{2} = obj.decoderInstance;
+                %obj.cache{value}{2} = obj.decoderInstance;
+                obj.cache{value}{2} = obj.outputImage;
             end
 
             obj.updateAxes();
